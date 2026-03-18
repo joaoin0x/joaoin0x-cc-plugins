@@ -85,6 +85,8 @@ Incluir em CADA spawn: `"Plugin root: {PLUGIN_ROOT} — lê o teu agent .md comp
 
 ## Phase 0: Configuration Check
 
+0. **Hook guard activation:** `touch ~/.clickup-review-active` (enables plugin hooks for this session)
+
 ```bash
 if ! grep -q 'code-reviews/' .gitignore 2>/dev/null; then
   echo '.claude/code-reviews/' >> .gitignore
@@ -197,6 +199,7 @@ Merged tickets: fechar B + comment "Consolidado com {A}" + dependência ClickUp 
 - [ ] Todos os tickets válidos: `#### Planeamento` + `#### Decisões Planning`
 - [ ] Todos os `.md` locais PUT para ClickUp com frontmatter actualizado
 - [ ] Dependências definidas no ClickUp
+- [ ] Hook guard deactivated: `rm -f ~/.clickup-review-active`
 - [ ] Tickets ao status correcto ("ready for dev" ou "Closed")
 - [ ] Merged tickets: B fechado, A enriquecido
 - [ ] Wave plan documentado e apresentado ao user

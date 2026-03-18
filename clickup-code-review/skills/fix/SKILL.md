@@ -149,6 +149,7 @@ Restantes mantêm Read-Ahead.
 
 ## Phase 0: Configuration Check
 
+0. **Hook guard activation:** `touch ~/.clickup-review-active` (enables plugin hooks for this session)
 1. Gitignore: verify `.claude/code-reviews/` in `.gitignore`
 2. CU Manager: config check (token, list ID, shortname, status mapping)
 3. CU Manager: RECONCILE CACHE (1x per session)
@@ -232,3 +233,4 @@ After ALL tickets in wave:
 - [ ] All tickets at correct status ("testing" or skipped)
 - [ ] Summary presented to user
 - [ ] User informed: NEVER auto-push
+- [ ] Hook guard deactivated: `rm -f ~/.clickup-review-active`

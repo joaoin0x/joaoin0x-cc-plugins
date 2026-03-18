@@ -15,6 +15,20 @@
 # Any command with &&, ||, or ; is AUTO-DENIED (agent must retry with single-statement).
 #
 # INSTALLED BY: Plugin hooks/hooks.json (auto-loaded when plugin is enabled)
+#
+# GUARD: Only active during plugin skill sessions. Outside of skills,
+# falls through to normal Claude Code manual approval (no deny, no allow).
+# Marker file created by each SKILL.md at startup, removed at shutdown.
+
+GUARD="$HOME/.clickup-review-active"
+if [ -f "$GUARD" ]; then
+    age=$(($(date +%s) - $(stat -f '%m' "$GUARD")))
+    [ "$age" -gt 14400 ] && rm -f "$GUARD"  # 4h stale → remove
+fi
+if [ ! -f "$GUARD" ]; then
+    cat > /dev/null
+    exit 0
+fi
 
 input=$(cat)
 command=$(echo "$input" | jq -r '.tool_input.command // ""' 2>/dev/null)
@@ -121,9 +135,12 @@ if echo "$command" | grep -qiE 'migrate:(fresh|reset)|db:wipe|DROP TABLE|TRUNCAT
     deny "Operacao destrutiva de BD proibida."
 fi
 
-# Dangerous permissions / execution
-if echo "$command" | grep -qE '(^| )(chmod 777|eval |source |exec )'; then
-    deny "chmod 777/eval/source/exec proibidos."
+# Dangerous permissions / execution (exec only at start — not docker exec, sail exec)
+if echo "$command" | grep -qE '(^| )(chmod 777|eval |source )'; then
+    deny "chmod 777/eval/source proibidos."
+fi
+if echo "$command" | grep -qE '^exec '; then
+    deny "exec proibido."
 fi
 
 # Package installation (changes dependencies)

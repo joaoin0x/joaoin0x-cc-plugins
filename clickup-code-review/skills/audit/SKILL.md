@@ -63,6 +63,8 @@ FORBIDDEN: NUNCA fechar DA ou CU Manager. NUNCA fechar specialists a MEIO de uma
 
 ## Phase 0: Configuration Check
 
+0. **Hook guard activation:** `touch ~/.clickup-review-active` (enables plugin hooks for this session)
+
 ```bash
 if ! grep -q 'code-reviews/' .gitignore 2>/dev/null; then
   echo '.claude/code-reviews/' >> .gitignore
@@ -202,3 +204,4 @@ Summary é REPORT do ClickUp, não recollection.
 - [ ] Summary gerado de dados reais (via CU Manager query)
 - [ ] Summary apresentado ao user → aguardar instrução
 - [ ] NUNCA shutdown sem ordem explícita do user
+- [ ] Hook guard deactivated: `rm -f ~/.clickup-review-active`

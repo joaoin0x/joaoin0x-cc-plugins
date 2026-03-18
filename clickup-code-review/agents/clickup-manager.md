@@ -244,14 +244,26 @@ PARENT STATUS PROPAGATION (OBRIGATÓRIO após cada mudança de status):
     open → planning → ready for dev → in progress → code review → testing → deploy to staging → Closed
 
   Regra: após mudar status de qualquer ticket filho:
-    1. Ler status de TODOS os filhos do mesmo parent (via local .md frontmatter)
+    1. Ler status de TODOS os filhos do mesmo parent (via local .md frontmatter OU via API)
     2. Determinar o status mais baixo na hierarquia
     3. Se parent.status != min(filhos.status) → PUT parent com novo status
+    4. Aplicar RECURSIVAMENTE: area subtask → main task
+
+  CRITICO: Esta regra aplica-se SEMPRE, mesmo quando:
+    - Os filhos vêm de sprints/reviews diferentes
+    - Há tickets "Closed" de sprints anteriores misturados com tickets activos
+    - O parent consolidado contém 100+ tickets de múltiplas sessões
+  O cálculo é SEMPRE: min(status de TODOS os filhos).
+  Se há filhos abertos E fechados: min dos abertos (Closed é o topo da hierarquia, não puxa para baixo).
+  Se TODOS os filhos estão "Closed" → parent = "Closed".
+  NUNCA reportar "not eligible" — calcular SEMPRE o mínimo e actualizar.
 
   Exemplos:
     - Audit iniciado → main task = "in progress" (há filhos a serem criados/processados)
     - Todos os tickets "ready for dev" → parent = "ready for dev"
     - 5 tickets "testing" + 1 "ready for dev" → parent = "ready for dev"
+    - 19 tickets "deploy to staging" + 1 "testing" → parent = "testing"
+    - 125 tickets "Closed" + 3 tickets "testing" → parent = "testing"
     - Todos "Closed" → parent = "Closed"
 ```
 

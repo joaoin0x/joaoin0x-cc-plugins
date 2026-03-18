@@ -66,6 +66,7 @@ ANTES de shutdown_request:
 
 ## Phase 0: Configuration Check
 
+0. **Hook guard activation:** `touch ~/.clickup-review-active` (enables plugin hooks for this session)
 1. Gitignore: verify `.claude/code-reviews/` in `.gitignore`
 2. CU Manager: config check (token, list ID, shortname, status mapping)
 3. CU Manager: RECONCILE CACHE (1x per session)
@@ -205,3 +206,4 @@ Bugs found during smoke/funcional/completo:
 - [ ] All local `.md` files synced to ClickUp (via CU Manager)
 - [ ] Screenshots deleted by QA Specialist before shutdown
 - [ ] Summary presented to user
+- [ ] Hook guard deactivated: `rm -f ~/.clickup-review-active`

@@ -10,6 +10,18 @@
 # Those are handled by separate hooks with path-based filtering.
 #
 # INSTALLED BY: Plugin hooks/hooks.json (auto-loaded when plugin is enabled)
+#
+# GUARD: Only active during plugin skill sessions.
+
+GUARD="$HOME/.clickup-review-active"
+if [ -f "$GUARD" ]; then
+    age=$(($(date +%s) - $(stat -f '%m' "$GUARD")))
+    [ "$age" -gt 14400 ] && rm -f "$GUARD"
+fi
+if [ ! -f "$GUARD" ]; then
+    cat > /dev/null
+    exit 0
+fi
 
 # Consume stdin (required by hook protocol)
 cat > /dev/null
