@@ -1,0 +1,830 @@
+<!DOCTYPE html>
+<html lang="pt-PT" data-bs-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ClickUp Code Review Dashboard</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<style>
+:root{--cc-bg:#0d1117;--cc-surface:#161b22;--cc-surface2:#1c2333;--cc-border:#30363d;--cc-text:#e6edf3;--cc-muted:#7d8590;--cc-accent:#58a6ff;--cc-sev-critical:#dc3545;--cc-sev-high:#fd7e14;--cc-sev-medium:#ffc107;--cc-sev-low:#198754;--cc-area-security:#8B5CF6;--cc-area-backend:#0D6EFD;--cc-area-frontend:#198754;--cc-area-quality:#FFC107;--cc-area-complexity:#ADB5BD;--cc-area-qa:#0dcaf0;--cc-success:#198754;--cc-danger:#dc3545;--cc-warning:#ffc107;--cc-info:#0dcaf0}
+*{font-family:'DM Sans',system-ui,sans-serif}
+body{background:var(--cc-bg);color:var(--cc-text);min-height:100vh}
+code,pre,.font-mono{font-family:'JetBrains Mono',monospace;font-size:.85em}
+.dashboard-header{background:linear-gradient(135deg,#0d1117 0%,#161b22 50%,#1a1e2e 100%);border-bottom:1px solid var(--cc-border);padding:1.5rem 0}
+.dashboard-title{font-size:1.4rem;font-weight:700;letter-spacing:-.02em}
+.dashboard-meta{font-size:.8rem;color:var(--cc-muted)}
+.kpi-card{background:var(--cc-surface);border:1px solid var(--cc-border);border-radius:12px;padding:1.25rem;transition:border-color .2s}
+.kpi-card:hover{border-color:var(--cc-accent)}
+.kpi-value{font-size:2rem;font-weight:700;line-height:1}
+.kpi-label{font-size:.75rem;color:var(--cc-muted);text-transform:uppercase;letter-spacing:.05em;margin-top:.25rem}
+.kpi-icon{font-size:1.5rem;opacity:.6}
+.nav-tabs .nav-link{color:var(--cc-muted);border:none;padding:.75rem 1.25rem;font-weight:500;font-size:.9rem;border-bottom:2px solid transparent}
+.nav-tabs .nav-link.active{color:var(--cc-accent);background:transparent;border-bottom-color:var(--cc-accent)}
+.nav-tabs .nav-link:hover:not(.active){color:var(--cc-text);border-bottom-color:var(--cc-border)}
+.nav-tabs{border-bottom:1px solid var(--cc-border)}
+.chart-container{background:var(--cc-surface);border:1px solid var(--cc-border);border-radius:12px;padding:1.25rem;height:300px;position:relative}
+.chart-container canvas{max-height:250px}
+.filter-bar{background:var(--cc-surface);border:1px solid var(--cc-border);border-radius:12px;padding:.75rem 1rem}
+.filter-bar select{background:var(--cc-surface2);color:var(--cc-text);border:1px solid var(--cc-border);border-radius:6px;padding:.35rem .75rem;font-size:.8rem}
+.filter-bar input{background:var(--cc-surface2);color:var(--cc-text);border:1px solid var(--cc-border);border-radius:6px;padding:.35rem .75rem;font-size:.8rem}
+.data-table{font-size:.8rem}
+.data-table thead th{background:var(--cc-surface2);color:var(--cc-muted);text-transform:uppercase;letter-spacing:.04em;font-size:.7rem;font-weight:600;border-bottom:2px solid var(--cc-border);cursor:pointer;white-space:nowrap;user-select:none}
+.data-table thead th:hover{color:var(--cc-accent)}
+.data-table thead th .sort-icon{margin-left:4px;opacity:.4}
+.data-table thead th.sort-active .sort-icon{opacity:1;color:var(--cc-accent)}
+.data-table tbody td{border-bottom:1px solid var(--cc-border);vertical-align:middle;padding:.5rem .6rem}
+.data-table tbody tr:hover{background:rgba(88,166,255,.04)}
+.badge-sev{font-size:.7rem;font-weight:600;padding:.25rem .5rem;border-radius:4px}
+.badge-critical{background:rgba(220,53,69,.15);color:#dc3545;border:1px solid rgba(220,53,69,.3)}
+.badge-high{background:rgba(253,126,20,.15);color:#fd7e14;border:1px solid rgba(253,126,20,.3)}
+.badge-medium{background:rgba(255,193,7,.15);color:#ffc107;border:1px solid rgba(255,193,7,.3)}
+.badge-low{background:rgba(25,135,84,.15);color:#198754;border:1px solid rgba(25,135,84,.3)}
+.badge-area{font-size:.65rem;font-weight:500;padding:.2rem .45rem;border-radius:3px}
+.badge-approved{background:rgba(25,135,84,.15);color:#198754;border:1px solid rgba(25,135,84,.3)}
+.badge-rejected{background:rgba(220,53,69,.15);color:#dc3545;border:1px solid rgba(220,53,69,.3)}
+.badge-request{background:rgba(255,193,7,.15);color:#ffc107;border:1px solid rgba(255,193,7,.3)}
+.setup-card{background:var(--cc-surface);border:1px solid var(--cc-border);border-radius:12px;padding:2rem;text-align:center}
+.setup-card .bi{font-size:2.5rem}
+.setup-ok{color:var(--cc-success)}
+.setup-fail{color:var(--cc-danger)}
+.wave-progress{height:24px;border-radius:6px;background:var(--cc-surface2);overflow:hidden;margin-bottom:.5rem}
+.wave-progress .bar{height:100%;display:inline-block;transition:width .3s}
+.empty-state{text-align:center;padding:4rem 2rem;color:var(--cc-muted)}
+.empty-state .bi{font-size:3rem;display:block;margin-bottom:1rem;opacity:.4}
+.pipeline-metrics{background:var(--cc-surface);border:1px solid var(--cc-border);border-radius:12px;margin-top:1.5rem}
+.pipeline-metrics .accordion-button{background:var(--cc-surface);color:var(--cc-muted);font-size:.85rem;font-weight:600;padding:.75rem 1rem}
+.pipeline-metrics .accordion-button:not(.collapsed){color:var(--cc-accent);box-shadow:none}
+.pipeline-metrics .accordion-body{background:var(--cc-surface);font-size:.8rem}
+.export-bar{margin-top:1.5rem;padding:.75rem 0;border-top:1px solid var(--cc-border)}
+.btn-export{font-size:.8rem;padding:.4rem .8rem}
+.ticket-id{font-family:'JetBrains Mono',monospace;font-size:.75rem;color:var(--cc-accent)}
+.commit-sha{font-family:'JetBrains Mono',monospace;font-size:.75rem;color:var(--cc-muted)}
+</style>
+</head>
+<body>
+<div class="dashboard-header">
+<div class="container-fluid px-4">
+<div class="d-flex justify-content-between align-items-center">
+<div>
+<div class="dashboard-title" id="dash-title">ClickUp Code Review Dashboard</div>
+<div class="dashboard-meta" id="dash-meta"></div>
+</div>
+<div class="text-end">
+<span class="badge bg-dark border border-secondary font-mono" id="dash-branch"></span>
+</div>
+</div>
+</div>
+</div>
+
+<div class="container-fluid px-4 mt-3">
+<ul class="nav nav-tabs mb-4" id="mainTabs" role="tablist">
+<li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#tab-setup" role="tab"><i class="bi bi-gear me-1"></i>Setup</a></li>
+<li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-audit" role="tab"><i class="bi bi-search me-1"></i>Audit</a></li>
+<li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-planning" role="tab"><i class="bi bi-kanban me-1"></i>Planning</a></li>
+<li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-fix" role="tab"><i class="bi bi-wrench me-1"></i>Fix</a></li>
+<li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-testing" role="tab"><i class="bi bi-bug me-1"></i>Testing</a></li>
+</ul>
+
+<div class="tab-content">
+
+<!-- ═══════════════ SETUP TAB ═══════════════ -->
+<div class="tab-pane fade show active" id="tab-setup" role="tabpanel">
+<div class="row g-3" id="setup-cards"></div>
+</div>
+
+<!-- ═══════════════ AUDIT TAB ═══════════════ -->
+<div class="tab-pane fade" id="tab-audit" role="tabpanel">
+<div id="audit-content"></div>
+</div>
+
+<!-- ═══════════════ PLANNING TAB ═══════════════ -->
+<div class="tab-pane fade" id="tab-planning" role="tabpanel">
+<div id="planning-content"></div>
+</div>
+
+<!-- ═══════════════ FIX TAB ═══════════════ -->
+<div class="tab-pane fade" id="tab-fix" role="tabpanel">
+<div id="fix-content"></div>
+</div>
+
+<!-- ═══════════════ TESTING TAB ═══════════════ -->
+<div class="tab-pane fade" id="tab-testing" role="tabpanel">
+<div id="testing-content"></div>
+</div>
+
+</div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+// ── DATA ──────────────────────────────────────────────
+const D = {{DASHBOARD_JSON}};
+
+// ── COLOR MAPS ────────────────────────────────────────
+const SEV_COLORS = {Critical:'#dc3545',High:'#fd7e14',Medium:'#ffc107',Low:'#198754'};
+const AREA_COLORS = {security:'#8B5CF6','backend-perf':'#0D6EFD',frontend:'#198754',quality:'#FFC107',complexity:'#ADB5BD',qa:'#0dcaf0'};
+const STATUS_COLORS = {'deploy to staging':'#198754',testing:'#0dcaf0','code review':'#ffc107','in progress':'#fd7e14','ready for dev':'#ADB5BD',skipped:'#dc3545'};
+
+// ── UTILITY ───────────────────────────────────────────
+function el(tag, attrs, children) {
+  const e = document.createElement(tag);
+  if (attrs) Object.entries(attrs).forEach(([k,v]) => {
+    if (k === 'className') e.className = v;
+    else if (k === 'text') e.textContent = v;
+    else if (k.startsWith('on')) e.addEventListener(k.slice(2).toLowerCase(), v);
+    else e.setAttribute(k, v);
+  });
+  if (children) (Array.isArray(children) ? children : [children]).forEach(c => {
+    if (typeof c === 'string') e.appendChild(document.createTextNode(c));
+    else if (c) e.appendChild(c);
+  });
+  return e;
+}
+
+function sevBadge(sev) {
+  return el('span', {className: 'badge-sev badge-' + (sev||'').toLowerCase(), text: sev || '—'});
+}
+
+function areaBadge(area) {
+  const s = el('span', {className: 'badge-area', text: area || '—'});
+  const c = AREA_COLORS[area];
+  if (c) { s.style.background = c + '22'; s.style.color = c; s.style.border = '1px solid ' + c + '44'; }
+  return s;
+}
+
+function verdictBadge(v) {
+  const cls = (v||'').includes('APPROVED') ? 'badge-approved' : (v||'').includes('REJECT') ? 'badge-rejected' : 'badge-request';
+  return el('span', {className: 'badge-sev ' + cls, text: v || '—'});
+}
+
+function emptyState(skill) {
+  const d = el('div', {className: 'empty-state'});
+  d.appendChild(el('i', {className: 'bi bi-clock-history'}));
+  d.appendChild(el('h4', {className: 'mt-3', text: 'Pendente'}));
+  const p = el('p');
+  p.appendChild(document.createTextNode('Esta fase ainda não foi executada. Invoke '));
+  p.appendChild(el('code', {text: '/clickup-code-review:' + skill}));
+  p.appendChild(document.createTextNode(' para preencher.'));
+  d.appendChild(p);
+  return d;
+}
+
+function makeTable(headers, rows, tableId) {
+  const wrapper = el('div', {className: 'table-responsive mt-3'});
+  const tbl = el('table', {className: 'table data-table table-borderless mb-0', id: tableId || ''});
+  const thead = el('thead');
+  const hrow = el('tr');
+  headers.forEach((h, i) => {
+    const th = el('th', {text: h + ' '});
+    th.appendChild(el('i', {className: 'bi bi-arrow-down-up sort-icon'}));
+    th.dataset.col = i;
+    th.addEventListener('click', () => sortTable(tbl, i, th));
+    hrow.appendChild(th);
+  });
+  thead.appendChild(hrow);
+  tbl.appendChild(thead);
+  const tbody = el('tbody');
+  rows.forEach(r => {
+    const tr = el('tr');
+    r.forEach(cell => {
+      const td = el('td');
+      if (typeof cell === 'string' || typeof cell === 'number') td.textContent = cell == null ? '—' : cell;
+      else if (cell instanceof HTMLElement) td.appendChild(cell);
+      else td.textContent = cell == null ? '—' : String(cell);
+      tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+  });
+  tbl.appendChild(tbody);
+  wrapper.appendChild(tbl);
+  return wrapper;
+}
+
+function sortTable(tbl, col, th) {
+  const tbody = tbl.querySelector('tbody');
+  const rows = Array.from(tbody.querySelectorAll('tr'));
+  const asc = !th.classList.contains('sort-asc');
+  tbl.querySelectorAll('th').forEach(t => { t.classList.remove('sort-active','sort-asc','sort-desc'); });
+  th.classList.add('sort-active', asc ? 'sort-asc' : 'sort-desc');
+  rows.sort((a,b) => {
+    const va = (a.children[col]||{}).textContent||'';
+    const vb = (b.children[col]||{}).textContent||'';
+    const na = parseFloat(va), nb = parseFloat(vb);
+    if (!isNaN(na) && !isNaN(nb)) return asc ? na-nb : nb-na;
+    return asc ? va.localeCompare(vb) : vb.localeCompare(va);
+  });
+  rows.forEach(r => tbody.appendChild(r));
+}
+
+function makeKPIs(items) {
+  const row = el('div', {className: 'row g-3 mb-4'});
+  items.forEach(({icon, value, label, color}) => {
+    const col = el('div', {className: 'col-md-3 col-sm-6'});
+    const card = el('div', {className: 'kpi-card'});
+    const top = el('div', {className: 'd-flex justify-content-between align-items-start'});
+    const val = el('div', {className: 'kpi-value', text: String(value != null ? value : '—')});
+    if (color) val.style.color = color;
+    top.appendChild(val);
+    top.appendChild(el('i', {className: 'bi ' + icon + ' kpi-icon'}));
+    card.appendChild(top);
+    card.appendChild(el('div', {className: 'kpi-label', text: label}));
+    col.appendChild(card);
+    row.appendChild(col);
+  });
+  return row;
+}
+
+function makeChart(id, type, data, options) {
+  const wrapper = el('div', {className: 'chart-container'});
+  const canvas = el('canvas', {id: id});
+  wrapper.appendChild(canvas);
+  requestAnimationFrame(() => {
+    new Chart(canvas, {
+      type: type,
+      data: data,
+      options: Object.assign({responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#7d8590',font:{size:11}}}}}, options||{})
+    });
+  });
+  return wrapper;
+}
+
+function makeFilterBar(filters, onFilter) {
+  const bar = el('div', {className: 'filter-bar d-flex gap-2 flex-wrap align-items-center mb-3'});
+  const selects = {};
+  filters.forEach(({id, label, options}) => {
+    const sel = el('select', {className: 'filter-select', id: 'filter-'+id});
+    sel.appendChild(el('option', {value: '', text: label}));
+    options.forEach(o => sel.appendChild(el('option', {value: o, text: o})));
+    sel.addEventListener('change', () => onFilter(getFilterValues()));
+    bar.appendChild(sel);
+    selects[id] = sel;
+  });
+  const search = el('input', {type: 'text', className: 'filter-search ms-auto', placeholder: 'Pesquisar...', style: 'min-width:180px'});
+  search.addEventListener('input', () => onFilter(getFilterValues()));
+  bar.appendChild(search);
+  selects._search = search;
+  function getFilterValues() {
+    const vals = {};
+    filters.forEach(f => vals[f.id] = selects[f.id].value);
+    vals._search = search.value.toLowerCase();
+    return vals;
+  }
+  return {bar, getValues: getFilterValues};
+}
+
+function makeExportBar(getMarkdown, getCsv, label) {
+  const bar = el('div', {className: 'export-bar d-flex gap-2'});
+  const btnMd = el('button', {className: 'btn btn-outline-secondary btn-export', text: 'Copy Markdown'});
+  btnMd.addEventListener('click', () => {
+    navigator.clipboard.writeText(getMarkdown()).then(() => { btnMd.textContent = 'Copied!'; setTimeout(() => btnMd.textContent = 'Copy Markdown', 2000); });
+  });
+  const btnCsv = el('button', {className: 'btn btn-outline-secondary btn-export', text: 'Download CSV'});
+  btnCsv.addEventListener('click', () => {
+    const blob = new Blob([getCsv()], {type:'text/csv'});
+    const a = el('a', {href: URL.createObjectURL(blob), download: (label||'export') + '.csv'});
+    a.click(); URL.revokeObjectURL(a.href);
+  });
+  bar.appendChild(btnMd);
+  bar.appendChild(btnCsv);
+  return bar;
+}
+
+function makePipelineMetrics(id) {
+  const pm = D.pipeline_metrics;
+  if (!pm) return el('div');
+  const acc = el('div', {className: 'pipeline-metrics accordion', id: 'pm-'+id});
+  const item = el('div', {className: 'accordion-item border-0'});
+  const hdr = el('h2', {className: 'accordion-header'});
+  const btn = el('button', {className: 'accordion-button collapsed', 'data-bs-toggle': 'collapse', 'data-bs-target': '#pmc-'+id, text: 'Pipeline Quality Metrics'});
+  hdr.appendChild(btn);
+  item.appendChild(hdr);
+  const body = el('div', {className: 'accordion-collapse collapse', id: 'pmc-'+id});
+  const inner = el('div', {className: 'accordion-body'});
+  const stats = [
+    ['False Positive Rate', (pm.false_positive_rate||0)+'%'],
+    ['Fix First-Attempt Rate', (pm.fix_first_attempt_rate||0)+'%'],
+    ['Avg Time per Ticket', (pm.avg_time_per_ticket_hours||0)+' hours'],
+    ['Scope Expansion Files', pm.scope_expansion_files||0]
+  ];
+  const dl = el('div', {className: 'row'});
+  stats.forEach(([k,v]) => {
+    dl.appendChild(el('div', {className: 'col-md-3 col-6 mb-2'}, [
+      el('div', {className: 'text-muted', text: k, style:'font-size:.7rem'}),
+      el('div', {className: 'fw-bold', text: String(v)})
+    ]));
+  });
+  inner.appendChild(dl);
+  if (pm.severity_drift && pm.severity_drift.length) {
+    inner.appendChild(el('h6', {className: 'mt-3 text-muted', text: 'Severity Drift', style:'font-size:.75rem'}));
+    inner.appendChild(makeTable(['Ticket','Audit','Planning','Fix','Testing'],
+      pm.severity_drift.map(s => [s.ticket_id, s.audit||'—', s.planning||'—', s.fix||'—', s.testing||'—'])
+    ));
+  }
+  if (pm.rejection_correlation && pm.rejection_correlation.length) {
+    inner.appendChild(el('h6', {className: 'mt-3 text-muted', text: 'Rejection Correlation (DA False Negatives)', style:'font-size:.75rem'}));
+    inner.appendChild(makeTable(['Rejected Finding','New Bug','Relation','File'],
+      pm.rejection_correlation.map(r => [r.rejected_title||r.rejected_finding, r.new_bug_title||r.new_bug, r.relation||'—', r.file||'—'])
+    ));
+  }
+  body.appendChild(inner);
+  item.appendChild(body);
+  acc.appendChild(item);
+  return acc;
+}
+
+// ── RENDER: SETUP ─────────────────────────────────────
+function renderSetup() {
+  const container = document.getElementById('setup-cards');
+  if (!D.setup) { container.appendChild(emptyState('setup')); return; }
+  const s = D.setup;
+  const items = [
+    {label:'API Token', ok: s.token_configured, icon:'bi-key'},
+    {label:'List ID', ok: !!s.list_id, icon:'bi-list-task', detail: s.list_id},
+    {label:'Shortname', ok: !!s.shortname, icon:'bi-tag', detail: s.shortname},
+    {label:'Hook Installed', ok: s.hook_installed, icon:'bi-plug'},
+    {label:'Gitignore', ok: s.gitignore_ok, icon:'bi-file-earmark-code'},
+    {label:'Chrome DevTools', ok: s.chrome_devtools_available, icon:'bi-browser-chrome'}
+  ];
+  items.forEach(({label, ok, icon, detail}) => {
+    const col = el('div', {className: 'col-md-2 col-sm-4 col-6'});
+    const card = el('div', {className: 'setup-card'});
+    card.appendChild(el('i', {className: 'bi ' + icon + ' ' + (ok ? 'setup-ok' : 'setup-fail')}));
+    card.appendChild(el('div', {className: 'mt-2 fw-bold', text: label}));
+    card.appendChild(el('div', {className: ok ? 'text-success' : 'text-danger', text: ok ? 'Configured' : 'Missing'}));
+    if (detail) card.appendChild(el('div', {className: 'font-mono text-muted mt-1', text: detail, style:'font-size:.7rem'}));
+    col.appendChild(card);
+    container.appendChild(col);
+  });
+}
+
+// ── RENDER: AUDIT ─────────────────────────────────────
+function renderAudit() {
+  const container = document.getElementById('audit-content');
+  if (!D.audit) { container.appendChild(emptyState('audit')); return; }
+  const a = D.audit;
+  const rate = a.findings_submitted ? ((a.findings_rejected/a.findings_submitted)*100).toFixed(1) : 0;
+
+  container.appendChild(makeKPIs([
+    {icon:'bi-search', value: a.findings_submitted, label:'Findings Submitted', color:'var(--cc-accent)'},
+    {icon:'bi-check-circle', value: a.findings_approved, label:'DA Approved', color:'var(--cc-success)'},
+    {icon:'bi-x-circle', value: a.findings_rejected, label:'DA Rejected', color:'var(--cc-danger)'},
+    {icon:'bi-percent', value: rate+'%', label:'Rejection Rate'}
+  ]));
+
+  const chartRow = el('div', {className: 'row g-3 mb-4'});
+  if (a.severity_counts) {
+    const sc = a.severity_counts;
+    chartRow.appendChild(el('div', {className: 'col-md-6'}, [
+      makeChart('audit-sev-pie', 'doughnut', {
+        labels: Object.keys(sc), datasets: [{data: Object.values(sc), backgroundColor: Object.keys(sc).map(k => SEV_COLORS[k]||'#666'), borderWidth: 0}]
+      }, {cutout:'55%', plugins:{title:{display:true,text:'By Severity',color:'#7d8590'}}})
+    ]));
+  }
+  if (a.area_counts) {
+    const ac = a.area_counts;
+    chartRow.appendChild(el('div', {className: 'col-md-6'}, [
+      makeChart('audit-area-bar', 'bar', {
+        labels: Object.keys(ac), datasets: [{label:'Findings',data: Object.values(ac), backgroundColor: Object.keys(ac).map(k => AREA_COLORS[k]||'#666'), borderRadius: 4}]
+      }, {scales:{y:{ticks:{color:'#7d8590'},grid:{color:'#30363d22'}},x:{ticks:{color:'#7d8590'},grid:{display:false}}},plugins:{title:{display:true,text:'By Area',color:'#7d8590'}}})
+    ]));
+  }
+  container.appendChild(chartRow);
+
+  // Filters + table
+  const findings = a.findings || [];
+  const areas = [...new Set(findings.map(f=>f.area))].filter(Boolean).sort();
+  const sevs = ['Critical','High','Medium','Low'];
+  const verdicts = ['APPROVED','REJECTED'];
+
+  let filteredData = findings;
+  const {bar, getValues} = makeFilterBar([
+    {id:'area', label:'All Areas', options: areas},
+    {id:'sev', label:'All Severities', options: sevs},
+    {id:'verdict', label:'All Verdicts', options: verdicts}
+  ], applyAuditFilters);
+  container.appendChild(bar);
+
+  const tableContainer = el('div');
+  container.appendChild(tableContainer);
+
+  function applyAuditFilters(vals) {
+    filteredData = findings.filter(f => {
+      if (vals.area && f.area !== vals.area) return false;
+      if (vals.sev && f.severity !== vals.sev) return false;
+      if (vals.verdict && f.da_verdict !== vals.verdict) return false;
+      if (vals._search && !JSON.stringify(f).toLowerCase().includes(vals._search)) return false;
+      return true;
+    });
+    renderAuditTable();
+  }
+
+  function renderAuditTable() {
+    tableContainer.textContent = '';
+    const rows = filteredData.map(f => [
+      el('span', {className:'ticket-id', text: f.ticket_id||'—'}),
+      f.title||'—', areaBadge(f.area), sevBadge(f.severity),
+      f.severity_original && f.severity_original !== f.severity ? sevBadge(f.severity_original) : '—',
+      f.confidence ? f.confidence+'%' : '—', f.estimate||'—',
+      verdictBadge(f.da_verdict),
+      el('span', {className:'font-mono', text: f.file||'—', style:'font-size:.7rem'}),
+      f.route||'—'
+    ]);
+    tableContainer.appendChild(makeTable(
+      ['ID','Title','Area','Severity','Original','Confidence','Estimate','DA Verdict','File','Route'],
+      rows, 'audit-table'
+    ));
+  }
+  renderAuditTable();
+
+  container.appendChild(makeExportBar(
+    () => tableToMarkdown(document.getElementById('audit-table')),
+    () => tableToCsv(document.getElementById('audit-table')),
+    'audit-findings'
+  ));
+  container.appendChild(makePipelineMetrics('audit'));
+}
+
+// ── RENDER: PLANNING ──────────────────────────────────
+function renderPlanning() {
+  const container = document.getElementById('planning-content');
+  if (!D.planning) { container.appendChild(emptyState('planning')); return; }
+  const p = D.planning;
+
+  container.appendChild(makeKPIs([
+    {icon:'bi-kanban', value: p.tickets_planned, label:'Tickets Planned', color:'var(--cc-accent)'},
+    {icon:'bi-layers', value: (p.waves||[]).length, label:'Waves'},
+    {icon:'bi-x-octagon', value: p.tickets_closed_false_positive, label:'False Positives Closed', color:'var(--cc-danger)'},
+    {icon:'bi-union', value: (p.merges||[]).length, label:'Merges'}
+  ]));
+
+  // Charts
+  const chartRow = el('div', {className: 'row g-3 mb-4'});
+  if (p.waves && p.waves.length) {
+    const waveLabels = p.waves.map(w => 'Wave '+w.wave);
+    const waveData = {};
+    ['Critical','High','Medium','Low'].forEach(s => {
+      waveData[s] = p.waves.map(w => (w.tickets||[]).filter(t => t.severity === s).length);
+    });
+    chartRow.appendChild(el('div', {className: 'col-md-6'}, [
+      makeChart('plan-wave-bar', 'bar', {
+        labels: waveLabels,
+        datasets: Object.entries(waveData).map(([s,d]) => ({label:s, data:d, backgroundColor:SEV_COLORS[s], borderRadius:3}))
+      }, {scales:{x:{stacked:true,ticks:{color:'#7d8590'},grid:{display:false}},y:{stacked:true,ticks:{color:'#7d8590'},grid:{color:'#30363d22'}}},plugins:{title:{display:true,text:'Tickets per Wave (by Severity)',color:'#7d8590'}}})
+    ]));
+
+    // Gantt-like
+    const ganttData = p.waves.map(w => {
+      let totalMin = 0;
+      (w.tickets||[]).forEach(t => {
+        const m = t.estimate ? parseInt(t.estimate) : 30;
+        totalMin += m;
+      });
+      return totalMin;
+    });
+    chartRow.appendChild(el('div', {className: 'col-md-6'}, [
+      makeChart('plan-gantt', 'bar', {
+        labels: waveLabels,
+        datasets: [{label:'Est. Minutes',data:ganttData,backgroundColor:'#58a6ff44',borderColor:'#58a6ff',borderWidth:1,borderRadius:4}]
+      }, {indexAxis:'y',scales:{x:{ticks:{color:'#7d8590'},grid:{color:'#30363d22'}},y:{ticks:{color:'#7d8590'},grid:{display:false}}},plugins:{title:{display:true,text:'Estimated Timeline',color:'#7d8590'}}})
+    ]));
+  }
+  container.appendChild(chartRow);
+
+  // Table
+  const allTickets = (p.waves||[]).flatMap(w => (w.tickets||[]).map(t => Object.assign({wave:w.wave}, t)));
+  const areas = [...new Set(allTickets.map(t=>t.area))].filter(Boolean).sort();
+  const specialists = [...new Set(allTickets.map(t=>t.specialist))].filter(Boolean).sort();
+  const waveNums = [...new Set(allTickets.map(t=>t.wave))].sort().map(String);
+
+  let filtered = allTickets;
+  const {bar} = makeFilterBar([
+    {id:'wave', label:'All Waves', options: waveNums},
+    {id:'area', label:'All Areas', options: areas},
+    {id:'specialist', label:'All Specialists', options: specialists}
+  ], vals => {
+    filtered = allTickets.filter(t => {
+      if (vals.wave && String(t.wave) !== vals.wave) return false;
+      if (vals.area && t.area !== vals.area) return false;
+      if (vals.specialist && t.specialist !== vals.specialist) return false;
+      if (vals._search && !JSON.stringify(t).toLowerCase().includes(vals._search)) return false;
+      return true;
+    });
+    renderPlanTable();
+  });
+  container.appendChild(bar);
+
+  const tc = el('div');
+  container.appendChild(tc);
+
+  function renderPlanTable() {
+    tc.textContent = '';
+    tc.appendChild(makeTable(
+      ['ID','Title','Wave','Area','Severity','Specialist','QA','Files','Deps','Est.','DA','Investigation'],
+      filtered.map(t => [
+        el('span',{className:'ticket-id',text:t.ticket_id||'—'}), t.title||'—', t.wave,
+        areaBadge(t.area), sevBadge(t.severity), t.specialist||'—', t.qa_strategy||'—',
+        (t.files||[]).length, (t.dependencies||[]).length||'—', t.estimate||'—',
+        verdictBadge(t.da_planning_verdict), verdictBadge(t.investigation_verdict)
+      ]), 'planning-table'
+    ));
+  }
+  renderPlanTable();
+
+  // Conflicts + Merges accordion
+  if ((p.conflicts_detected && p.conflicts_detected.length) || (p.merges && p.merges.length)) {
+    const acc = el('div', {className: 'accordion mt-3', id: 'plan-extras'});
+    if (p.conflicts_detected && p.conflicts_detected.length) {
+      const item = el('div', {className: 'accordion-item bg-transparent border-secondary'});
+      const h = el('h2', {className: 'accordion-header'});
+      h.appendChild(el('button', {className: 'accordion-button collapsed bg-transparent text-muted', 'data-bs-toggle':'collapse', 'data-bs-target':'#conflicts-body', text: 'Conflicts Detected ('+p.conflicts_detected.length+')'}));
+      item.appendChild(h);
+      const body = el('div', {className: 'accordion-collapse collapse', id: 'conflicts-body'});
+      const inner = el('div', {className: 'accordion-body', style:'font-size:.8rem'});
+      inner.appendChild(makeTable(['Ticket A','Ticket B','Shared Files','Resolution'],
+        p.conflicts_detected.map(c => [c.ticket_a, c.ticket_b, (c.shared_files||[]).join(', '), c.resolution||'—'])
+      ));
+      body.appendChild(inner);
+      item.appendChild(body);
+      acc.appendChild(item);
+    }
+    if (p.merges && p.merges.length) {
+      const item = el('div', {className: 'accordion-item bg-transparent border-secondary'});
+      const h = el('h2', {className: 'accordion-header'});
+      h.appendChild(el('button', {className: 'accordion-button collapsed bg-transparent text-muted', 'data-bs-toggle':'collapse', 'data-bs-target':'#merges-body', text: 'Merges ('+p.merges.length+')'}));
+      item.appendChild(h);
+      const body = el('div', {className: 'accordion-collapse collapse', id: 'merges-body'});
+      const inner = el('div', {className: 'accordion-body', style:'font-size:.8rem'});
+      inner.appendChild(makeTable(['Merged Ticket','Original Tickets','Area','Reason'],
+        p.merges.map(m => [m.merged_ticket, (m.original_tickets||[]).join(', '), m.area||'—', m.reason||'—'])
+      ));
+      body.appendChild(inner);
+      item.appendChild(body);
+      acc.appendChild(item);
+    }
+    container.appendChild(acc);
+  }
+
+  container.appendChild(makeExportBar(
+    () => tableToMarkdown(document.getElementById('planning-table')),
+    () => tableToCsv(document.getElementById('planning-table')),
+    'planning'
+  ));
+  container.appendChild(makePipelineMetrics('planning'));
+}
+
+// ── RENDER: FIX ───────────────────────────────────────
+function renderFix() {
+  const container = document.getElementById('fix-content');
+  if (!D.fix) { container.appendChild(emptyState('fix')); return; }
+  const f = D.fix;
+
+  container.appendChild(makeKPIs([
+    {icon:'bi-wrench', value: f.total_processed, label:'Total Processed', color:'var(--cc-accent)'},
+    {icon:'bi-check2-all', value: f.deployed, label:'Deployed', color:'var(--cc-success)'},
+    {icon:'bi-skip-forward', value: f.skipped, label:'Skipped', color:'var(--cc-warning)'},
+    {icon:'bi-arrow-counterclockwise', value: f.rolled_back, label:'Rolled Back', color:'var(--cc-danger)'}
+  ]));
+
+  // Wave progress bars
+  if (f.waves_completed && f.waves_completed.length) {
+    const waveSection = el('div', {className: 'mb-4'});
+    f.waves_completed.forEach(w => {
+      const label = el('div', {className: 'd-flex justify-content-between', style:'font-size:.75rem'});
+      label.appendChild(el('span', {text: 'Wave ' + w.wave}));
+      label.appendChild(el('span', {className: w.all_passed ? 'text-success' : 'text-warning', text: w.all_passed ? 'All Passed' : 'Issues'}));
+      waveSection.appendChild(label);
+      const bar = el('div', {className: 'wave-progress'});
+      const fill = el('div', {className: 'bar'});
+      fill.style.width = '100%';
+      fill.style.background = w.all_passed ? 'var(--cc-success)' : 'linear-gradient(90deg, var(--cc-success) 70%, var(--cc-warning) 100%)';
+      bar.appendChild(fill);
+      waveSection.appendChild(bar);
+    });
+    container.appendChild(waveSection);
+  }
+
+  // Charts
+  const chartRow = el('div', {className: 'row g-3 mb-4'});
+  const statusCounts = {};
+  (f.tickets||[]).forEach(t => { statusCounts[t.status] = (statusCounts[t.status]||0)+1; });
+  if (Object.keys(statusCounts).length) {
+    chartRow.appendChild(el('div', {className: 'col-md-6'}, [
+      makeChart('fix-status-pie', 'doughnut', {
+        labels: Object.keys(statusCounts),
+        datasets: [{data: Object.values(statusCounts), backgroundColor: Object.keys(statusCounts).map(k => STATUS_COLORS[k]||'#666'), borderWidth:0}]
+      }, {cutout:'55%', plugins:{title:{display:true,text:'Final Status',color:'#7d8590'}}})
+    ]));
+  }
+  // DA rounds chart
+  const roundCounts = {1:0,2:0,'3+':0};
+  (f.tickets||[]).forEach(t => { const r = t.da_rounds||0; if(r<=1) roundCounts[1]++; else if(r===2) roundCounts[2]++; else roundCounts['3+']++; });
+  chartRow.appendChild(el('div', {className: 'col-md-6'}, [
+    makeChart('fix-rounds-bar', 'bar', {
+      labels: ['1 Round','2 Rounds','3+ Rounds'],
+      datasets: [{label:'Tickets',data:[roundCounts[1],roundCounts[2],roundCounts['3+']],backgroundColor:['#198754','#ffc107','#dc3545'],borderRadius:4}]
+    }, {scales:{y:{ticks:{color:'#7d8590'},grid:{color:'#30363d22'}},x:{ticks:{color:'#7d8590'},grid:{display:false}}},plugins:{title:{display:true,text:'DA Review Rounds',color:'#7d8590'}}})
+  ]));
+  container.appendChild(chartRow);
+
+  // Table
+  const tickets = f.tickets||[];
+  const areas = [...new Set(tickets.map(t=>t.area))].filter(Boolean).sort();
+  const statuses = [...new Set(tickets.map(t=>t.status))].filter(Boolean).sort();
+  let filtered = tickets;
+
+  const {bar} = makeFilterBar([
+    {id:'area', label:'All Areas', options: areas},
+    {id:'status', label:'All Status', options: statuses},
+    {id:'verdict', label:'All DA', options:['APPROVED','REQUEST-CHANGES','REJECTED']}
+  ], vals => {
+    filtered = tickets.filter(t => {
+      if (vals.area && t.area !== vals.area) return false;
+      if (vals.status && t.status !== vals.status) return false;
+      if (vals.verdict && t.da_code_review !== vals.verdict) return false;
+      if (vals._search && !JSON.stringify(t).toLowerCase().includes(vals._search)) return false;
+      return true;
+    });
+    renderFixTable();
+  });
+  container.appendChild(bar);
+
+  const tc = el('div');
+  container.appendChild(tc);
+
+  function renderFixTable() {
+    tc.textContent = '';
+    tc.appendChild(makeTable(
+      ['ID','Title','Area','Severity','Status','Commit','DA','Rounds','QA','Attempts','Files','+/-'],
+      filtered.map(t => [
+        el('span',{className:'ticket-id',text:t.ticket_id||'—'}), t.title||'—',
+        areaBadge(t.area), sevBadge(t.severity), t.status||'—',
+        el('span',{className:'commit-sha',text:t.commit_sha||'—'}),
+        verdictBadge(t.da_code_review), t.da_rounds||'—', t.qa_result||'—',
+        t.fix_attempts||'—', t.files_modified||'—',
+        (t.insertions?'+'+t.insertions:'') + (t.deletions?' -'+t.deletions:'') || '—'
+      ]), 'fix-table'
+    ));
+  }
+  renderFixTable();
+
+  container.appendChild(makeExportBar(
+    () => tableToMarkdown(document.getElementById('fix-table')),
+    () => tableToCsv(document.getElementById('fix-table')),
+    'fix'
+  ));
+  container.appendChild(makePipelineMetrics('fix'));
+}
+
+// ── RENDER: TESTING ───────────────────────────────────
+function renderTesting() {
+  const container = document.getElementById('testing-content');
+  if (!D.testing) { container.appendChild(emptyState('testing')); return; }
+  const t = D.testing;
+
+  container.appendChild(makeKPIs([
+    {icon:'bi-browser-chrome', value: t.pages_tested, label:'Pages Tested', color:'var(--cc-accent)'},
+    {icon:'bi-check-circle', value: t.pages_passed, label:'Passed', color:'var(--cc-success)'},
+    {icon:'bi-x-circle', value: t.pages_failed, label:'Failed', color:'var(--cc-danger)'},
+    {icon:'bi-bug', value: t.new_bugs_found, label:'New Bugs Found', color:'var(--cc-warning)'}
+  ]));
+
+  // Charts
+  const chartRow = el('div', {className: 'row g-3 mb-4'});
+  chartRow.appendChild(el('div', {className: 'col-md-6'}, [
+    makeChart('test-pass-pie', 'doughnut', {
+      labels: ['Passed','Failed'],
+      datasets: [{data:[t.pages_passed||0, t.pages_failed||0], backgroundColor:['#198754','#dc3545'], borderWidth:0}]
+    }, {cutout:'55%', plugins:{title:{display:true,text:'Pass Rate',color:'#7d8590'}}})
+  ]));
+
+  // Errors by module
+  const moduleErrors = {};
+  (t.pages||[]).forEach(p => {
+    const m = p.module || 'Unknown';
+    if (!moduleErrors[m]) moduleErrors[m] = {console:0, network:0};
+    moduleErrors[m].console += p.console_errors||0;
+    moduleErrors[m].network += p.network_errors||0;
+  });
+  const mods = Object.keys(moduleErrors).filter(m => moduleErrors[m].console + moduleErrors[m].network > 0).sort();
+  if (mods.length) {
+    chartRow.appendChild(el('div', {className: 'col-md-6'}, [
+      makeChart('test-module-bar', 'bar', {
+        labels: mods,
+        datasets: [
+          {label:'Console',data:mods.map(m=>moduleErrors[m].console),backgroundColor:'#ffc10744',borderColor:'#ffc107',borderWidth:1,borderRadius:3},
+          {label:'Network',data:mods.map(m=>moduleErrors[m].network),backgroundColor:'#dc354544',borderColor:'#dc3545',borderWidth:1,borderRadius:3}
+        ]
+      }, {scales:{x:{stacked:true,ticks:{color:'#7d8590'},grid:{display:false}},y:{stacked:true,ticks:{color:'#7d8590'},grid:{color:'#30363d22'}}},plugins:{title:{display:true,text:'Errors by Module',color:'#7d8590'}}})
+    ]));
+  }
+  container.appendChild(chartRow);
+
+  // Pages table
+  const pages = t.pages||[];
+  const modules = [...new Set(pages.map(p=>p.module))].filter(Boolean).sort();
+  let filteredPages = pages;
+
+  const {bar} = makeFilterBar([
+    {id:'module', label:'All Modules', options: modules},
+    {id:'result', label:'All Results', options:['PASS','FAIL']}
+  ], vals => {
+    filteredPages = pages.filter(p => {
+      if (vals.module && p.module !== vals.module) return false;
+      if (vals.result && p.result !== vals.result) return false;
+      if (vals._search && !JSON.stringify(p).toLowerCase().includes(vals._search)) return false;
+      return true;
+    });
+    renderTestTable();
+  });
+  container.appendChild(bar);
+
+  const tc = el('div');
+  container.appendChild(tc);
+
+  function renderTestTable() {
+    tc.textContent = '';
+    tc.appendChild(makeTable(
+      ['URL','Module','Result','Console','Network','CRUD','Notes','Ticket'],
+      filteredPages.map(p => [
+        el('span',{className:'font-mono',text:p.url||'—',style:'font-size:.7rem'}),
+        p.module||'—',
+        el('span',{className: p.result==='PASS'?'text-success':'text-danger',text:p.result||'—'}),
+        p.console_errors||0, p.network_errors||0,
+        p.crud_result||'—', p.notes||'—',
+        p.ticket_id ? el('span',{className:'ticket-id',text:p.ticket_id}) : '—'
+      ]), 'testing-pages-table'
+    ));
+  }
+  renderTestTable();
+
+  // QA Verdicts table
+  if (t.qa_verdicts && t.qa_verdicts.length) {
+    container.appendChild(el('h6', {className: 'mt-4 mb-2 text-muted', text: 'QA Verdicts', style:'font-size:.8rem;text-transform:uppercase;letter-spacing:.05em'}));
+    container.appendChild(makeTable(
+      ['Ticket','Verdict','QA Severity','Evidence Quality','Routed To'],
+      t.qa_verdicts.map(v => [
+        el('span',{className:'ticket-id',text:v.ticket_id||'—'}),
+        verdictBadge(v.verdict),
+        v.severity_qa ? sevBadge(v.severity_qa) : '—',
+        v.evidence_quality||'—',
+        v.routed_to||'—'
+      ]), 'testing-verdicts-table'
+    ));
+  }
+
+  container.appendChild(makeExportBar(
+    () => tableToMarkdown(document.getElementById('testing-pages-table')),
+    () => tableToCsv(document.getElementById('testing-pages-table')),
+    'testing'
+  ));
+  container.appendChild(makePipelineMetrics('testing'));
+}
+
+// ── EXPORT HELPERS ────────────────────────────────────
+function tableToMarkdown(tbl) {
+  if (!tbl) return '';
+  const rows = [];
+  const ths = Array.from(tbl.querySelectorAll('thead th'));
+  rows.push('| ' + ths.map(th => th.textContent.trim()).join(' | ') + ' |');
+  rows.push('| ' + ths.map(() => '---').join(' | ') + ' |');
+  tbl.querySelectorAll('tbody tr').forEach(tr => {
+    const cells = Array.from(tr.children).map(td => td.textContent.trim());
+    rows.push('| ' + cells.join(' | ') + ' |');
+  });
+  return rows.join('\n');
+}
+
+function tableToCsv(tbl) {
+  if (!tbl) return '';
+  const rows = [];
+  const ths = Array.from(tbl.querySelectorAll('thead th'));
+  rows.push(ths.map(th => '"'+th.textContent.trim().replace(/"/g,'""')+'"').join(','));
+  tbl.querySelectorAll('tbody tr').forEach(tr => {
+    const cells = Array.from(tr.children).map(td => '"'+td.textContent.trim().replace(/"/g,'""')+'"');
+    rows.push(cells.join(','));
+  });
+  return rows.join('\n');
+}
+
+// ── INIT ──────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  // Header
+  if (D.meta) {
+    document.getElementById('dash-title').textContent = 'ClickUp Code Review Dashboard — ' + (D.meta.shortname||'') + ' ' + (D.meta.review_dir||'');
+    document.getElementById('dash-meta').textContent = 'Last updated: ' + (D.meta.last_updated||'—');
+    document.getElementById('dash-branch').textContent = D.meta.branch ? 'Branch: '+D.meta.branch : 'No branch yet';
+    document.title = 'CC Dashboard — ' + (D.meta.shortname||'');
+  }
+
+  renderSetup();
+  renderAudit();
+  renderPlanning();
+  renderFix();
+  renderTesting();
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,7 @@
+{
+  "name": "local-code-review",
+  "description": "Multi-agent code review for local changes (staged, unstaged, commits, branches)",
+  "author": {
+    "name": "joaoin0x"
+  }
+}
