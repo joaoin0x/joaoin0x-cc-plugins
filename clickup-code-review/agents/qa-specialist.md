@@ -133,31 +133,67 @@ REGRA: Screenshots = ferramenta de trabalho — APAGAR antes de terminar.
 
 ---
 
-## MODE: TESTING (standalone — /clickup-code-review:testing)
+## MODE: TESTING (standalone — /clickup-code-review:testing) — v5.2.2
 
-Teste funcional completo via Chrome DevTools MCP.
+Teste funcional completo via Chrome DevTools MCP. **Snapshot-First + Human Navigation + Design System.**
 
 ```
 PASSO 0: SETUP
   - Chrome DevTools MCP + login
   - Modo: 'tickets' | 'smoke' | 'funcional' | 'completo'
+  - Ler references/testing-protocol.md (Snapshot-First + Human Navigation + Design System)
+  - Ler references/functional-checklists.md (checklists por tipo de pagina)
 
 PASSO 1: MAPEAR PAGINAS
-  - 'tickets': fetch tickets em "testing" (via Maestro → CU Manager)
-  - Outros: ler routes, organizar por modulo
+  - 'tickets': fetch tickets em "testing" → navegar por URL (excepção permitida)
+  - 'smoke'/'funcional'/'completo': NAVEGAÇÃO HUMANA (OBRIGATÓRIO)
+    a) Após login, take_snapshot() do dashboard
+    b) Identificar menu/sidebar → clicar cada item → descobrir páginas
+    c) Ler routes (Read tool) → cross-check com páginas descobertas
+    d) Páginas órfãs (rota sem link na UI) → FINDING ao DA
+    e) Testar páginas pela ordem de descoberta na UI (NÃO por lista de rotas)
+    f) Registar NAV_METHOD para cada página no progress log
 
-PASSO 2: EXECUTAR TESTES (por pagina)
-  Nivel 1 — Smoke (todos): navigate, wait, title check, console, network
-  Nivel 2 — Funcional (funcional/completo): pesquisa, paginacao, CRUD completo
+PASSO 2: EXECUTAR TESTES (por pagina — Snapshot-First)
+
+  Nivel 1 — Smoke (todos):
+    navigate → wait → title check → console → network
+
+  Nivel 2 — Funcional (funcional/completo):
+    a) take_snapshot() como PRIMEIRO passo após navegação (OBRIGATÓRIO)
+    b) Analisar snapshot: contar botões, links, inputs, selects
+    c) Interagir com CADA elemento: click, fill, select, press_key
+    d) Verificar resultado de cada interacção
+    e) CRUD completo: Create → Show → Edit → Delete (ciclo COMPLETO)
+    f) Design System check: comparar elementos com baseline (ver testing-protocol.md)
+       Primeira pagina: criar baseline em {REVIEW_DIR}/qa/design-patterns-baseline.md
+       Subsequentes: comparar. Desvios significativos → finding ao DA
+    g) Navigation Consistency: breadcrumbs, active menu, back button
+
+  Exemplo com 9 interacções (Listing page):
+    take_snapshot → search (fill+enter) → pagination (click next) →
+    filter (select option) → sort (click header) → create button (click) →
+    edit link (click) → delete button (click + cancel) →
+    console + network check
+    = 9 interacções = funcional. "Navigate + title" = smoke, NÃO funcional.
+
   Session expiry → re-login automatico. Multi-role → logout/login per role.
 
 PASSO 3: GRAVAR progresso apos CADA pagina
+  Formato funcional (1 linha por interacção):
+    "{timestamp} | {url} | {element} | {action} | {expected} | {actual} | PASS/FAIL"
+  Registar NAV_METHOD como primeira linha de cada página:
+    "{timestamp} | {url} | NAV_METHOD | {sidebar/link/url_directa} | discovered_via: '{path}'"
 
 PASSO 4: REPORTAR
-  - Tickets "testing" → SendMessage ao DA (QA-REVIEW) com evidencia completa
+  - Tickets "testing" → SendMessage ao DA (QA-REVIEW) com evidência completa
+    (incluir: ticket ID, URLs, CADA interacção concreta, console, network, CRUD)
   - Bugs novos → SendMessage ao DA (FINDING-FILTER), Standard Finding Format
+  - Páginas órfãs → SendMessage ao DA (FINDING-FILTER)
+  - Design System inconsistências → SendMessage ao DA (FINDING-FILTER)
 
 PASSO 5: FINALIZAR
+  - Reportar: "Páginas alcançáveis via UI: {N}. Rotas registadas: {M}. Órfãs: {O}."
   - Relatorio completo, APAGAR screenshots, summary ao DA + Maestro
   - Copiar relatorio para .claude/code-reviews/
 ```
@@ -171,3 +207,7 @@ PASSO 5: FINALIZAR
 - NAO aprovar/rejeitar findings (area do DA)
 - NAO manter screenshots apos terminar
 - NAO continuar se Chrome DevTools MCP nao disponivel
+- NAO reportar "PASS" sem evidência de interacção (interagir com elementos, não apenas navegar)
+- NAO fazer apenas navigate + title check em modo funcional (isso é smoke, NÃO funcional)
+- NAO navegar directamente por URL em modo funcional/completo (excepto login + tickets em "testing" + retorno após CRUD)
+- NAO saltar take_snapshot() — é o PRIMEIRO passo obrigatório após CADA navegação em modo funcional

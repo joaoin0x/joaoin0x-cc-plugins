@@ -1,12 +1,36 @@
-# Functional Test Checklists (v5.2.1)
+# Functional Test Checklists (v5.2.2)
 
 QA Specialist reference for Level 2 (Funcional) testing. Use these checklists for each page type encountered. All items must be verified before marking a page as PASS.
 
 **Ver `testing-protocol.md`** para procedimentos Chrome DevTools MCP passo-a-passo.
 
+**REGRA v5.2.2:** `take_snapshot()` é o PRIMEIRO passo em TODAS as páginas. O snapshot revela os elementos interactivos — sem isto, o agent não sabe o que testar.
+
+---
+
+## Navigation Consistency (OBRIGATÓRIO — todas as páginas)
+
+- [ ] Página alcançável via menu/sidebar? (se não → "página órfã" finding)
+- [ ] Breadcrumbs presentes e correctos?
+- [ ] Back button/link funciona?
+- [ ] Menu item activo corresponde à página actual?
+
+---
+
+## Design System Consistency (OBRIGATÓRIO em funcional/completo)
+
+- [ ] Botões primários: mesmas classes/estilo que baseline?
+- [ ] Tabelas: mesmo componente/estrutura que baseline?
+- [ ] Forms: labels, inputs, error messages consistentes com baseline?
+- [ ] Cards/containers: layout consistente com baseline?
+- [ ] Tipografia: headings, body text consistentes?
+- [ ] Se desvio encontrado → registar + incluir no relatório
+
 ---
 
 ## Listing / Index Pages
+
+**PRIMEIRO:** Snapshot da página — identificar TODOS os elementos interactivos
 
 - [ ] Table/list renders with data (not empty unless expected)
 - [ ] Search input exists → fill + submit → verify results update
@@ -25,6 +49,8 @@ QA Specialist reference for Level 2 (Funcional) testing. Use these checklists fo
 
 ## Form / Create Pages
 
+**PRIMEIRO:** Snapshot da página — identificar TODOS os campos e botões
+
 - [ ] All required fields detected (marked with `*` or `required` attribute)
 - [ ] Required fields filled with valid test data
 - [ ] Optional fields sampled (at least 2-3 filled)
@@ -39,6 +65,8 @@ QA Specialist reference for Level 2 (Funcional) testing. Use these checklists fo
 
 ## Edit Pages
 
+**PRIMEIRO:** Snapshot da página — identificar TODOS os campos preenchidos e botões
+
 - [ ] Page loads with existing data pre-filled in fields
 - [ ] Modify at least one field with new test value
 - [ ] Submit → verify redirect or success flash message
@@ -48,6 +76,8 @@ QA Specialist reference for Level 2 (Funcional) testing. Use these checklists fo
 ---
 
 ## Show / Detail Pages
+
+**PRIMEIRO:** Snapshot da página — identificar TODAS as secções e botões de acção
 
 - [ ] All expected fields/sections visible (not just skeleton/loading state)
 - [ ] Related items visible (if page shows relationships)
@@ -59,6 +89,8 @@ QA Specialist reference for Level 2 (Funcional) testing. Use these checklists fo
 
 ## Delete Actions
 
+**PRIMEIRO:** Snapshot — identificar botão de delete e tipo de confirmação (dialog/modal)
+
 - [ ] Delete button exists (in listing row or show page)
 - [ ] Click delete → confirmation dialog/modal appears
 - [ ] Cancel confirmation → record still exists
@@ -68,6 +100,8 @@ QA Specialist reference for Level 2 (Funcional) testing. Use these checklists fo
 ---
 
 ## Dashboard Pages
+
+**PRIMEIRO:** Snapshot da página — identificar TODOS os widgets, cards, e elementos interactivos
 
 - [ ] All metric cards/widgets render (no empty/broken sections)
 - [ ] Charts render with data (canvas elements not empty)
@@ -79,6 +113,8 @@ QA Specialist reference for Level 2 (Funcional) testing. Use these checklists fo
 
 ## Settings / Configuration Pages
 
+**PRIMEIRO:** Snapshot da página — identificar TODOS os campos de configuração
+
 - [ ] All settings fields visible and pre-populated
 - [ ] Modify a safe setting (e.g., display preference, not critical config)
 - [ ] Save → verify success message
@@ -87,6 +123,8 @@ QA Specialist reference for Level 2 (Funcional) testing. Use these checklists fo
 ---
 
 ## Import / Export Pages
+
+**PRIMEIRO:** Snapshot da página — identificar botões de export e inputs de upload
 
 **Export:**
 - [ ] Export button exists → click → verify download starts OR file listed
@@ -101,6 +139,8 @@ QA Specialist reference for Level 2 (Funcional) testing. Use these checklists fo
 
 ## Modal / Dialog Interactions
 
+**PRIMEIRO:** Snapshot antes de trigger — identificar botão que abre o modal
+
 - [ ] Trigger button exists → click → modal opens
 - [ ] Modal renders correctly (not cut off, not empty)
 - [ ] Interaction inside modal (fill form, click button)
@@ -112,6 +152,8 @@ QA Specialist reference for Level 2 (Funcional) testing. Use these checklists fo
 
 ## State Transition Actions (Approval/Status Flows)
 
+**PRIMEIRO:** Snapshot da página — identificar botões/dropdowns de mudança de estado
+
 - [ ] Status change buttons/dropdowns visible
 - [ ] Change status (e.g., pending → active) → verify status updates in UI
 - [ ] Approval action → verify approved indicator shown
@@ -122,7 +164,9 @@ QA Specialist reference for Level 2 (Funcional) testing. Use these checklists fo
 
 ## QA Specialist Notes
 
+- `take_snapshot()` é o PRIMEIRO passo em CADA página — sem excepções
 - Screenshots are temporary debugging tools — **DELETE before shutdown** (MANDATORY)
 - When a test fails: record in `{REVIEW_DIR}/qa/qa-progress.md` with URL, action, expected vs actual
 - If test cannot be completed (missing test data, permissions): log as SKIPPED with reason
 - Every interactive element counts — do not skip buttons, links, or filters
+- Registar NAV_METHOD (sidebar/link/url_directa) para cada página no progress log

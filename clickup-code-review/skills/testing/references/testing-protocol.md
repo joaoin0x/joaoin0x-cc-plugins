@@ -1,4 +1,4 @@
-# Testing Protocol Reference (v5.0)
+# Testing Protocol Reference (v5.2.2)
 
 Technical reference for the testing skill. The Maestro, QA Specialist, DA, and ClickUp Manager use this document for Chrome DevTools MCP methodology, login handling, screenshot rules, and QA verdict routing.
 
@@ -21,6 +21,7 @@ Technical reference for the testing skill. The Maestro, QA Specialist, DA, and C
 | `evaluate_script` | Run JS in page context | Title check, element visibility |
 | `list_console_messages` | Capture JS errors | After page load |
 | `list_network_requests` | Capture HTTP errors | After page load |
+| `take_snapshot` | Get accessibility tree with ALL interactive elements | FIRST tool after navigation — before ANY interaction |
 | `take_screenshot` | Visual evidence (temporary) | When needed for debugging |
 
 ### Interaction Tools (Level 2 — Functional tests)
@@ -42,6 +43,256 @@ Technical reference for the testing skill. The Maestro, QA Specialist, DA, and C
 | `list_pages` | List open browser pages | Session management |
 | `get_console_message` | Get specific console message details | Error investigation |
 | `get_network_request` | Get specific request details | 4xx/5xx investigation |
+
+---
+
+## Snapshot-First Methodology (OBRIGATÓRIO — v5.2.2)
+
+### Princípio
+
+O `take_snapshot()` retorna a accessibility tree com TODOS os elementos interactivos da página. Sem isto, o agent não sabe o que existe e defaults para smoke (navigate + title = NÃO funcional).
+
+### Padrão: SNAPSHOT → IDENTIFY → INTERACT → VERIFY
+
+```
+PASSO 1: SNAPSHOT (após CADA navegação)
+  take_snapshot()
+  → Retorna: lista de TODOS os elementos interactivos (botões, links, inputs, selects, etc.)
+
+PASSO 2: IDENTIFY (analisar snapshot)
+  → Contar elementos interactivos: botões ({N}), links ({N}), inputs ({N}), selects ({N})
+  → Identificar acções possíveis: pesquisa, paginação, create, edit, delete, filtros
+  → Registar o que a página REALMENTE tem (não assumir)
+
+PASSO 3: INTERACT (testar CADA elemento)
+  → Para CADA elemento identificado no snapshot: executar acção
+  → Usar click(), fill(), press_key(), select_option() conforme o tipo
+  → Verificar resultado de cada interacção
+
+PASSO 4: VERIFY (confirmar resultado)
+  → Após cada interacção: take_snapshot() novamente OU evaluate_script()
+  → Comparar estado antes vs depois
+  → Registar PASS/FAIL por interacção
+```
+
+### Exemplo Completo: Listing Page (9 interacções)
+
+```
+# 1. Navegar
+navigate_page(url="{APP_URL}/manager/users")
+wait_for(selector="body", timeout=10000)
+
+# 2. SNAPSHOT — descobrir o que existe
+take_snapshot()
+→ Resultado: table (15 rows), search input, pagination (3 pages),
+  "Create" button, per-row: "Edit" link, "Delete" button,
+  filter dropdown "Role", sort headers "Name", "Email"
+
+# 3. INTERACÇÕES (testar CADA elemento do snapshot)
+
+# 3.1 Search
+fill(selector="input[name='search']", value="admin")
+press_key(key="Enter")
+wait_for(selector="body", timeout=5000)
+→ Verificar: tabela actualizada, rows filtradas
+fill(selector="input[name='search']", value="")
+press_key(key="Enter")
+→ Verificar: todos os resultados voltaram
+
+# 3.2 Pagination
+click(selector=".pagination .page-link[rel='next']")
+wait_for(selector="body", timeout=5000)
+→ Verificar: rows diferentes, indicador de página mudou
+
+# 3.3 Filter
+click(selector="select[name='role']")
+select_option(selector="select[name='role']", value="admin")
+wait_for(selector="body", timeout=5000)
+→ Verificar: tabela filtrada
+
+# 3.4 Sort
+click(selector="th[data-sort='name']")
+→ Verificar: ordem alterada
+
+# 3.5 Create button
+click(selector="a[href*='create'], button:has-text('Create')")
+→ Verificar: navegou para formulário de criação
+navigate_page(url="{APP_URL}/manager/users")  # voltar
+
+# 3.6 Edit (first row)
+click(selector="table tbody tr:first-child a[href*='edit']")
+→ Verificar: formulário de edição com dados preenchidos
+navigate_page(url="{APP_URL}/manager/users")  # voltar
+
+# 3.7 Delete (first row — se dados de teste)
+click(selector="table tbody tr:first-child button.delete, table tbody tr:first-child a.delete")
+→ Verificar: confirmação aparece
+handle_dialog(accept=false)  # cancelar — não apagar dados reais
+
+# 3.8 Console check
+list_console_messages()
+→ Filtrar erros JS
+
+# 3.9 Network check
+list_network_requests()
+→ Filtrar 4xx/5xx
+
+# 4. REGISTAR (com detalhe de interacções)
+Append to qa-progress.md:
+"{timestamp} | /manager/users | search | fill+enter | results filtered | PASS"
+"{timestamp} | /manager/users | pagination | click next | page changed | PASS"
+"{timestamp} | /manager/users | filter | select role | table filtered | PASS"
+... (1 linha por interacção)
+```
+
+### Regra: "Navigate + Title" ≠ Funcional
+
+| Acção | Nível |
+|-------|-------|
+| navigate + title check + console + network | **Smoke (Level 1)** |
+| navigate + take_snapshot + interact com CADA elemento + verify | **Funcional (Level 2)** |
+
+Se o QA só faz navigate + title em modo funcional → profundidade INSUFICIENTE → Maestro rejeita.
+
+---
+
+## Human-First Navigation (OBRIGATÓRIO — v5.2.2)
+
+### Princípio
+
+O QA navega como um utilizador real: começa no dashboard, clica nos menus/sidebar, descobre páginas via links. NUNCA navega directamente por URL excepto para:
+- Login page (ponto de partida)
+- URLs específicas de tickets em "testing" (validação pós-fix)
+- Retorno após CRUD (após create, navegar de volta ao index por URL é aceitável)
+
+### Procedimento
+
+```
+FASE 1: DESCOBERTA VIA UI
+  1. Após login, navigate_page(url="{APP_URL}/dashboard") → take_snapshot()
+  2. Identificar sidebar/menu via snapshot: todos os links de navegação
+  3. Para CADA link do menu:
+     a) click(link) → take_snapshot()
+     b) Registar: página alcançável via "{menu_section} > {link_text}"
+     c) Na nova página, identificar sub-links (breadcrumbs, tabs, botões)
+     d) Recursivamente: testar sub-páginas alcançáveis via UI
+  4. Mapa resultante: árvore de páginas alcançáveis via navegação humana
+
+FASE 2: CROSS-CHECK COM ROTAS
+  1. Ler routes/web.php + route files incluídos (Read tool)
+  2. Filtrar: GET routes com middleware auth
+  3. Comparar rotas registadas vs páginas descobertas na UI
+  4. FINDINGS:
+     a) Rota existe MAS não tem link na UI → "PÁGINA ÓRFÃ"
+        Finding: "Página {url} não tem navegação na UI (sem menu/botão).
+        Inacessível para utilizadores. Ou adicionar link, ou remover rota."
+     b) Link na UI aponta para 404 → "LINK MORTO"
+        Finding: "Link '{text}' no menu {section} leva a 404."
+     c) Rota existe E tem link → NORMAL (testar normalmente)
+
+FASE 3: TESTE DAS PÁGINAS (ordem humana)
+  Testar páginas pela ordem de descoberta na UI (não por lista de rotas).
+  Para páginas órfãs: reportar como finding, testar de qualquer forma via URL.
+```
+
+### Excepções (navegação directa por URL permitida)
+
+- Login/logout (pontos de partida/fim)
+- URLs de tickets em "testing" (validação pós-fix — sabe-se a URL do bug)
+- Retorno após CRUD (após create, navegar de volta ao index por URL é aceitável)
+
+### Formato Finding (Página Órfã)
+
+```markdown
+### {SHORTNAME} - Página órfã sem navegação na UI
+- **Severidade:** Low
+- **Confiança:** 95%
+- **Rota:** `GET {url}`
+
+#### Problema
+Página `{url}` tem rota registada mas não é alcançável via menu/sidebar/links na UI.
+Utilizadores não conseguem aceder a esta página sem saber o URL directo.
+
+#### Impacto
+Página inacessível para utilizadores normais. Pode indicar funcionalidade esquecida
+ou rota que deveria ter sido removida.
+
+#### Correcção Sugerida
+Opção A: Adicionar link no menu/sidebar para esta página.
+Opção B: Remover rota se a funcionalidade não é necessária.
+```
+
+---
+
+## Design System Consistency Check (Level 2 — v5.2.2)
+
+### Princípio
+
+Durante `take_snapshot()`, verificar que os elementos seguem padrões consistentes.
+Não é necessário conhecer o design system — detectar DESVIOS entre páginas.
+
+### O que verificar (por página, durante snapshot analysis)
+
+```
+BUTTONS:
+  - Todas as páginas usam as mesmas classes para botões primários?
+  - Ex: se dashboard usa `btn btn-primary`, mas users usa `btn btn-success` para acção similar → inconsistência
+  - Acção primária (Create/Save) deve ter estilo consistente em todas as páginas
+
+TABLES:
+  - Todas as tabelas usam o mesmo componente/classes?
+  - Ex: se users tem `table table-striped` mas shifts tem `table` simples → inconsistência
+  - Headers, row styling, hover effects consistentes?
+
+CARDS/CONTAINERS:
+  - Layout containers consistentes entre páginas?
+  - Spacing/padding visual similar?
+
+FORMS:
+  - Labels, input styling, error messages consistentes?
+  - Required field indicators (`*`) consistentes?
+  - Submit button placement e estilo consistentes?
+
+NAVIGATION:
+  - Sidebar/header estilo consistente em todas as páginas?
+  - Active state visível no menu?
+```
+
+### Procedimento
+
+```
+1. Na PRIMEIRA página funcional testada: registar padrões base
+   - Button classes para acções primárias/secundárias/danger
+   - Table classes e estrutura
+   - Form input styling
+   - Card/container classes
+   Guardar em {REVIEW_DIR}/qa/design-patterns-baseline.md
+
+2. Em CADA página subsequente: comparar com baseline
+   - Se diferente: registar desvio
+   - Após todas as páginas: se >30% das páginas desviam → finding ao DA
+   - Se apenas 1-2 páginas desviam → finding individual por página
+```
+
+### Formato Finding (Design System)
+
+```markdown
+### {SHORTNAME} - Inconsistência de design system: {elemento}
+- **Severidade:** Low
+- **Confiança:** {90}%
+- **Ficheiro:** `{view_file.blade.php}` (se identificável)
+- **Rota:** `GET {url}`
+
+#### Problema
+Página {url} usa {pattern_found} para {elemento}, mas o padrão do projecto é {baseline_pattern}.
+{N} de {total} páginas seguem o padrão base; esta página desvia.
+
+#### Impacto
+Inconsistência visual para o utilizador. Degrada a percepção de qualidade da aplicação.
+
+#### Correcção Sugerida
+Alinhar {elemento} com o padrão do projecto ({baseline_pattern}).
+```
 
 ---
 
@@ -187,6 +438,8 @@ STEP 6: RECORD RESULT
 Applied to pages with CRUD, forms, or interactive elements. EXTENDS Level 1 (all smoke checks run first).
 
 **DEFINIÇÃO de Funcional:** Testar CADA elemento interactivo. "Navigate + check title" é smoke, NÃO funcional.
+
+**REGRA OBRIGATÓRIA:** Usar `take_snapshot()` como PRIMEIRO passo após navegação. O snapshot revela TODOS os elementos interactivos — sem isto, o agent não sabe o que testar e defaults para smoke.
 
 Ver `references/functional-checklists.md` para checklists por tipo de página (Listing, Form/Create, Edit, Show, Delete, Dashboard, Settings, Import/Export, Modal, State Transitions).
 
@@ -415,17 +668,36 @@ IF QA SPECIALIST DIES MID-SESSION:
 
 **File:** `{REVIEW_DIR}/qa/qa-progress.md`
 
-**Format (append after EACH page):**
+**Format — Smoke (Level 1):**
 ```
 {ISO_timestamp} | {url} | {PASS/FAIL} | console:{N} network:{N} | {notes}
 ```
 
-**Examples:**
+**Format — Funcional (Level 2) — 1 linha por interacção:**
+```
+{ISO_timestamp} | {url} | {element} | {action} | {expected} | {actual} | PASS/FAIL
+```
+
+**Format — Navigation Method (registar como primeira linha de cada página):**
+```
+{ISO_timestamp} | {url} | NAV_METHOD | {menu/sidebar/link/url_directa} | discovered_via: "{path}"
+```
+
+**Examples (Smoke):**
 ```
 2026-03-10T14:05:00Z | /manager/dashboard | PASS | console:0 network:0 |
 2026-03-10T14:05:30Z | /manager/users | PASS | console:0 network:0 |
-2026-03-10T14:06:00Z | /manager/ponto/import | FAIL | console:1 network:0 | TypeError in import.js
-2026-03-10T14:06:30Z | /manager/hr/shifts | FAIL | console:0 network:1 | 500 on /api/shifts
+```
+
+**Examples (Funcional — com interacções):**
+```
+2026-03-10T14:06:00Z | /manager/users | NAV_METHOD | sidebar | discovered_via: "RH > Utilizadores"
+2026-03-10T14:06:05Z | /manager/users | search_input | fill "admin" + Enter | results filtered | 3 rows shown | PASS
+2026-03-10T14:06:10Z | /manager/users | pagination_next | click | page 2 shown | page 2 loaded | PASS
+2026-03-10T14:06:15Z | /manager/users | filter_role | select "Admin" | table filtered | 2 rows shown | PASS
+2026-03-10T14:06:20Z | /manager/users | create_button | click | navigate to form | form loaded | PASS
+2026-03-10T14:06:25Z | /manager/users | edit_link_row1 | click | edit form loaded | form with data | PASS
+2026-03-10T14:06:30Z | /manager/users | delete_btn_row1 | click | confirmation dialog | dialog shown | PASS
 ```
 
 ### Per-Ticket Progress (for "tickets" mode)
@@ -561,7 +833,7 @@ Login: {TEST_EMAIL} / {TEST_PASSWORD} (from credentials.local.md)
 
 ---
 
-## Verificação por Tipo de Ticket (v5.2.1)
+## Verificação por Tipo de Ticket (v5.2.2)
 
 ### Verificação COMPLETA via browser (QA testa tudo funcionalmente)
 

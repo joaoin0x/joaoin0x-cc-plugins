@@ -1,4 +1,4 @@
-# Pipeline Rules (Shared — v5.2.1)
+# Pipeline Rules (Shared — v5.2.2)
 
 Regras transversais a todos os agentes do pipeline de code review. Lido no arranque por TODOS os agents.
 
@@ -32,6 +32,8 @@ Regras transversais a todos os agentes do pipeline de code review. Lido no arran
 - **AUDIT:** findings → DA (FINDING-FILTER), 1 por mensagem, sem batching
 - **PLANNING:** plano → DA (PLANNING-REVIEW) + Investigation, em paralelo
 - **FIX:** diff → DA (CODE-REVIEW) directamente. Report final → Maestro
+- **TESTING:** evidência por ticket → DA (QA-REVIEW), 1 SendMessage por ticket (streaming, não batch).
+  DA verdict → Maestro. Maestro → CU Manager (status change). DA NUNCA fala com CU Manager directamente.
 - **Cross-area:** sugestoes a outros specialists sao ENCORAJADAS via SendMessage
 - NUNCA comunicar directamente com o utilizador
 - NUNCA comunicar com o ClickUp Manager (tudo via Maestro)

@@ -4,7 +4,7 @@ description: Functional browser testing via Chrome DevTools MCP with ClickUp tic
 user_invocable: true
 ---
 
-# ClickUp Code Review — Testing Skill (v5.2.1)
+# ClickUp Code Review — Testing Skill (v5.2.2)
 
 Functional browser testing via Chrome DevTools MCP. Validates post-fix tickets, discovers new bugs, manages QA lifecycle with DA QA-REVIEW.
 
@@ -30,7 +30,7 @@ Functional browser testing via Chrome DevTools MCP. Validates post-fix tickets, 
 
 ---
 
-## Shutdown Rules (v5.2.1)
+## Shutdown Rules (v5.2.2)
 
 ### Quando fechar agentes
 Maestro PODE fechar QA Specialist no FINAL de cada phase. DA e CU Manager persistem toda a sessão.
@@ -66,7 +66,6 @@ ANTES de shutdown_request:
 
 ## Phase 0: Configuration Check
 
-0. **Hook guard activation:** `touch ~/.clickup-review-active` (enables plugin hooks for this session)
 1. Gitignore: verify `.claude/code-reviews/` in `.gitignore`
 2. CU Manager: config check (token, list ID, shortname, status mapping)
 3. CU Manager: RECONCILE CACHE (1x per session)
@@ -75,14 +74,96 @@ ANTES de shutdown_request:
    TeamCreate(team_name="cc-testing-{shortname}-{date}", description="Code Review testing phase")
    ```
 5. Spawn order (TODOS com team_name):
+   **PLUGIN_ROOT:** Obter via `Bash "echo $CLAUDE_PLUGIN_ROOT"` antes de spawnar.
+
    - CU Manager: `Task(team_name="cc-testing-...", name="cu-manager")`
-   - DA: `Task(team_name="cc-testing-...", name="da")` → QA-REVIEW mode
-   - QA Specialist: `Task(team_name="cc-testing-...", name="qa")` → TESTING mode
-   **PLUGIN_ROOT:** Obter via `Bash "echo $CLAUDE_PLUGIN_ROOT"` antes de spawnar. Incluir no spawn de QA Specialist: `"Plugin root: {PLUGIN_ROOT} — lê o teu agent .md em {PLUGIN_ROOT}/agents/qa-specialist.md."`
-5. QA Specialist: verify Chrome DevTools MCP available. If NOT → report to Maestro → STOP.
+     **Spawn prompt:**
+     ```
+     MODE: TESTING
+     Plugin root: {PLUGIN_ROOT}
+     Lê o teu agent .md em {PLUGIN_ROOT}/agents/clickup-manager.md
+     Lê references/clickup-api-patterns.md
+     Operações esperadas: config check, cache reconcile, fetch tickets "testing",
+     status changes (testing→deploy to staging, testing→ready for dev, testing→planning),
+     criar tickets novos (findings QA aprovados pelo DA).
+     Persistes toda a sessão. Instruções de status change vêm do Maestro.
+     ```
+
+   - DA: `Task(team_name="cc-testing-...", name="da")`
+     **Spawn prompt:**
+     ```
+     MODE: QA-REVIEW
+     Plugin root: {PLUGIN_ROOT}
+     Lê o teu agent .md em {PLUGIN_ROOT}/agents/devils-advocate.md
+     Lê references/testing-protocol.md (secção QA→DA SendMessage Templates)
+     Vais receber evidência do QA Specialist via SendMessage.
+     Para cada ticket: emitir QA-APPROVED ou QA-REJECTED + severity.
+     Para findings novos: emitir APPROVED ou REJECTED (FINDING-FILTER).
+     TODOS os verdicts vão para o Maestro (SendMessage). NUNCA para CU Manager directamente.
+     ```
+
+   - QA Specialist: `Task(team_name="cc-testing-...", name="qa")`
+     **Spawn prompt:**
+     ```
+     MODE: TESTING
+     Plugin root: {PLUGIN_ROOT}
+     Lê o teu agent .md em {PLUGIN_ROOT}/agents/qa-specialist.md
+     Lê references/testing-protocol.md (Snapshot-First + Human Navigation + Design System)
+     Lê references/functional-checklists.md (checklists funcionais por tipo de página)
+
+     REGRAS CRITICAS:
+     1. Snapshot-First: take_snapshot() como PRIMEIRO passo após cada navegação
+     2. Human Navigation: navegar via menus/sidebar, NÃO por URL directa
+     3. Design System: comparar elementos com baseline entre páginas
+     4. Interagir com TODOS os elementos do snapshot (não apenas navegar)
+     5. "Navigate + title check" = smoke. Funcional = snapshot + interact + verify.
+     6. Evidência para o DA deve listar CADA interacção concreta.
+     ```
+
+6. QA Specialist: verify Chrome DevTools MCP available. If NOT → report to Maestro → STOP.
    **Maestro STOP playbook:** AskUserQuestion "Chrome DevTools MCP indisponível — abortar sessão ou aguardar?".
    Se abortar → shutdown DA + CU Manager (protocolo normal) → terminar skill.
    Se aguardar → manter agentes activos → re-tentar após instrução do user.
+
+### Message Routing (OBRIGATÓRIO — respeitar fluxo)
+
+```
+QA Specialist ──SendMessage──→ DA (evidência: ticket ID + interacções + console + network)
+                                │
+                                ├─ QA-APPROVED ──SendMessage──→ Maestro
+                                │                                  │
+                                │                      Maestro ──SendMessage──→ CU Manager (status change)
+                                │
+                                ├─ QA-REJECTED ──SendMessage──→ Maestro
+                                │                                  │
+                                │                      Maestro decide routing:
+                                │                      ├─ Re-test → SendMessage ao QA
+                                │                      └─ Status change → SendMessage ao CU Manager
+                                │
+                                └─ FINDING (new bug) ──SendMessage──→ Maestro
+                                                                       │
+                                                           Maestro ──SendMessage──→ CU Manager (create ticket)
+
+REGRA: DA NUNCA comunica directamente com CU Manager. Tudo passa pelo Maestro.
+REGRA: QA Specialist envia 1 mensagem por ticket ao DA (streaming, não batch).
+```
+
+### Timeout Protocol
+
+**DA não responde após QA enviar evidência:**
+1. 5 min sem verdict → Maestro envia "Status?" ao DA
+2. +2 min sem resposta → Maestro pausa QA, reporta ao user
+3. Se user diz continuar → marcar verdict como PENDING-DA, continuar próximo ticket
+
+**QA Specialist não progride (0 páginas em 10 min):**
+1. Maestro envia "Status?" ao QA
+2. Se QA responde com problema → Maestro resolve (re-login, skip página)
+3. Se QA não responde → re-spawnar QA com contexto do último progress
+
+**DA rejeita re-test (2x rejeição no mesmo ticket):**
+1. Maestro marca ticket como "blocked-qa"
+2. AskUserQuestion: "Ticket {id} rejeitado 2x pelo DA. Continuar para próximo ou investigar?"
+3. Continuar com outros tickets, voltar ao blocked no final
 
 ---
 
@@ -142,6 +223,32 @@ Maestro reporta ao user a cada ~10 min: `"Progresso: {N} páginas testadas ao n�
 
 ### Progress tracking
 QA Specialist appends to `{REVIEW_DIR}/qa/qa-progress.md` after EACH page.
+
+### Depth Enforcement (Maestro verifica a cada 10 min)
+
+Maestro lê `{REVIEW_DIR}/qa/qa-progress.md` e verifica:
+
+**Indicadores de profundidade CORRECTA (funcional):**
+- Entradas com `| {element} | {action} |` (interacções concretas)
+- >= 3 interacções por página CRUD
+- Evidência de `take_snapshot` nos resultados
+- Páginas descobertas via menu (não apenas por URL)
+
+**Indicadores de profundidade INSUFICIENTE:**
+- Apenas `| {url} | PASS | console:0 network:0 |` (= smoke)
+- Zero interacções (click/fill/select)
+- Nenhuma evidência de CRUD ou snapshot
+- Todas as páginas navegadas por URL directa (sem menu discovery)
+
+**Acção:**
+1. SendMessage ao QA: "Evidência mostra apenas smoke. Re-testar com: take_snapshot, interact, verify."
+2. Se após 2 avisos continua → re-spawnar QA com feedback explícito.
+
+### Navigation Audit (Maestro verifica no final)
+
+1. QA deve reportar: "Páginas alcançáveis via UI: {N}. Rotas registadas: {M}. Órfãs: {O}."
+2. Se O > 0 → findings de páginas órfãs enviados ao DA
+3. Se QA apenas navegou por URL (sem menu discovery) → REJEITAR relatório.
 
 ---
 
@@ -206,4 +313,3 @@ Bugs found during smoke/funcional/completo:
 - [ ] All local `.md` files synced to ClickUp (via CU Manager)
 - [ ] Screenshots deleted by QA Specialist before shutdown
 - [ ] Summary presented to user
-- [ ] Hook guard deactivated: `rm -f ~/.clickup-review-active`

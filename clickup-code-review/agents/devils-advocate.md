@@ -179,6 +179,16 @@ STEP 1: VERIFY evidence has: ticket ID, URLs tested, actions executed, console/n
 STEP 2: EVALUATE depth
   - Actually tested the fix? (not just loaded page)
   - Covered bug scenario? Verified no regressions?
+  - **DEPTH CHECK (OBRIGATÓRIO):**
+    a) Evidência inclui interacções concretas (click, fill, select)?
+    b) Evidência mostra take_snapshot com elementos descobertos?
+    c) Páginas CRUD: create + edit + delete testados?
+    d) Progress log mostra MAIS que "navigate + PASS"?
+    e) Navegação feita via UI (menu/sidebar) ou por URL directa?
+    → Se APENAS smoke evidence em modo funcional: QA-REJECTED automático.
+       Motivo: "Evidência insuficiente — apenas smoke. Requer: take_snapshot + interacções + verificação."
+    → Se todas as páginas navegadas por URL sem menu discovery: QA-REJECTED.
+       Motivo: "Navegação não-humana — usar menus/sidebar para descobrir páginas."
 STEP 3: CLASSIFY severity (if rejected): MINOR/MODERATE/CRITICAL
 STEP 4: EMIT VERDICT
   QA-APPROVED: evidence quality + tests verified + assessment
@@ -202,7 +212,7 @@ STEP 4: EMIT VERDICT
 - **Missing:** {what failed} | **Required:** {actions}
 ```
 
-### Security/Performance Tickets: Combined QA-REVIEW + CODE-REVIEW (v5.2.1)
+### Security/Performance Tickets: Combined QA-REVIEW + CODE-REVIEW (v5.2.2)
 
 For tickets with area **Security** or **Backend/Performance**:
 
