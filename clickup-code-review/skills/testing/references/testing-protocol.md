@@ -1,4 +1,4 @@
-# Testing Protocol Reference (v5.2.2)
+# Testing Protocol Reference (v5.2.3)
 
 Technical reference for the testing skill. The Maestro, QA Specialist, DA, and ClickUp Manager use this document for Chrome DevTools MCP methodology, login handling, screenshot rules, and QA verdict routing.
 
@@ -46,7 +46,7 @@ Technical reference for the testing skill. The Maestro, QA Specialist, DA, and C
 
 ---
 
-## Snapshot-First Methodology (OBRIGATÓRIO — v5.2.2)
+## Snapshot-First Methodology (OBRIGATÓRIO — v5.2.3)
 
 ### Princípio
 
@@ -156,7 +156,7 @@ Se o QA só faz navigate + title em modo funcional → profundidade INSUFICIENTE
 
 ---
 
-## Human-First Navigation (OBRIGATÓRIO — v5.2.2)
+## Human-First Navigation (OBRIGATÓRIO — v5.2.3)
 
 ### Princípio
 
@@ -224,7 +224,7 @@ Opção B: Remover rota se a funcionalidade não é necessária.
 
 ---
 
-## Design System Consistency Check (Level 2 — v5.2.2)
+## Design System Consistency Check (Level 2 — v5.2.3)
 
 ### Princípio
 
@@ -833,7 +833,7 @@ Login: {TEST_EMAIL} / {TEST_PASSWORD} (from credentials.local.md)
 
 ---
 
-## Verificação por Tipo de Ticket (v5.2.2)
+## Verificação por Tipo de Ticket (v5.2.3)
 
 ### Verificação COMPLETA via browser (QA testa tudo funcionalmente)
 

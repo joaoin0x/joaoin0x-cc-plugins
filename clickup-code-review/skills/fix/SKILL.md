@@ -4,7 +4,7 @@ description: Implement fixes for validated ClickUp code review tickets. Handles 
 user_invocable: true
 ---
 
-# ClickUp Code Review — Fix Skill (v5.2.1)
+# ClickUp Code Review — Fix Skill (v5.2.3)
 
 Execute planned fixes for validated tickets. Read-Ahead Queue — PREPARE paralelo (max 3) + IMPLEMENT serial. DA CODE-REVIEW + evidence gate + commit per ticket.
 
@@ -34,7 +34,7 @@ Execute planned fixes for validated tickets. Read-Ahead Queue — PREPARE parale
 
 ---
 
-## Shutdown Rules (v5.2.1)
+## Shutdown Rules (v5.2.3)
 
 ### Quando fechar agentes
 Maestro PODE fechar specialists no FINAL de cada wave. DA e CU Manager persistem toda a sessão.
@@ -69,7 +69,7 @@ TODOS os agentes spawned com `team_name` e `name` para comunicação via SendMes
 
 ---
 
-## Read-Ahead Queue (v5.2.1)
+## Read-Ahead Queue (v5.2.3)
 
 **PREPARE paralelo (read-only, max 3) → persist .prepare.md → IMPLEMENT serial (write/stage).**
 

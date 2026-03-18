@@ -1,17 +1,19 @@
 #!/bin/bash
-# bump-version.sh — Detect modified files and bump version references
+# bump-version.sh — Auto-increment or set version across all plugin files
 #
 # Usage:
-#   ./scripts/bump-version.sh <new-version>              # bump changed files since last tag
-#   ./scripts/bump-version.sh <new-version> --since <ref> # bump changed files since <ref>
-#   ./scripts/bump-version.sh <new-version> --all         # bump ALL files (full sweep)
-#   ./scripts/bump-version.sh <new-version> --check       # dry-run — report what needs bumping
+#   ./scripts/bump-version.sh                          # auto +0.0.1 (patch bump)
+#   ./scripts/bump-version.sh --minor                  # auto +0.1.0
+#   ./scripts/bump-version.sh --major                  # auto +1.0.0
+#   ./scripts/bump-version.sh 5.3.0                    # set explicit version
+#   ./scripts/bump-version.sh 5.3.0 --all              # bump ALL files (full sweep)
+#   ./scripts/bump-version.sh --check                  # dry-run — report what needs bumping
+#   ./scripts/bump-version.sh 5.3.0 --since v5.2.1    # bump changed files since <ref>
 #
 # Examples:
-#   ./scripts/bump-version.sh 5.2.2
-#   ./scripts/bump-version.sh 5.3.0 --since v5.2.1
-#   ./scripts/bump-version.sh 5.3.0 --all
-#   ./scripts/bump-version.sh 5.3.0 --check
+#   ./scripts/bump-version.sh              # 5.2.2 → 5.2.3 (auto)
+#   ./scripts/bump-version.sh --minor      # 5.2.2 → 5.3.0 (auto)
+#   ./scripts/bump-version.sh 6.0.0 --all  # set 6.0.0 everywhere
 
 set -euo pipefail
 
@@ -23,35 +25,53 @@ CYAN='\033[0;36m'
 BOLD='\033[1m'
 NC='\033[0m'
 
-# --- Args ---
-if [ $# -lt 1 ]; then
-    echo -e "${RED}Uso: $0 <new-version> [--since <ref>|--all|--check]${NC}"
-    echo ""
-    echo "  <new-version>    Versão sem 'v' prefix (ex: 5.2.2)"
-    echo "  --since <ref>    Comparar contra um ref git específico (default: último tag)"
-    echo "  --all            Actualizar TODOS os ficheiros (não só os modificados)"
-    echo "  --check          Dry-run — mostra o que precisa de bump sem alterar"
+# --- Detect plugin root ---
+PLUGIN_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$PLUGIN_ROOT"
+
+REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || echo "$PLUGIN_ROOT")"
+
+# --- Read current version from plugin.json ---
+PLUGIN_JSON="$PLUGIN_ROOT/.claude-plugin/plugin.json"
+if [ ! -f "$PLUGIN_JSON" ]; then
+    echo -e "${RED}plugin.json não encontrado em $PLUGIN_JSON${NC}"
     exit 1
 fi
 
-NEW_VERSION="$1"
-shift
-
-# Validate version format
-if ! echo "$NEW_VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
-    echo -e "${RED}Versão inválida: ${NEW_VERSION}${NC}"
-    echo "Formato esperado: X.Y.Z (ex: 5.2.2)"
+CURRENT_VERSION=$(grep -oE '"version": "[0-9]+\.[0-9]+\.[0-9]+"' "$PLUGIN_JSON" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
+if [ -z "$CURRENT_VERSION" ]; then
+    echo -e "${RED}Versão actual não encontrada em plugin.json${NC}"
     exit 1
 fi
 
-MODE="changed"
+MAJOR=$(echo "$CURRENT_VERSION" | cut -d. -f1)
+MINOR=$(echo "$CURRENT_VERSION" | cut -d. -f2)
+PATCH=$(echo "$CURRENT_VERSION" | cut -d. -f3)
+
+# --- Parse args ---
+NEW_VERSION=""
+MODE="all"
 SINCE_REF=""
 DRY_RUN=false
+INCREMENT=""
 
 while [ $# -gt 0 ]; do
     case "$1" in
+        --patch)
+            INCREMENT="patch"
+            shift
+            ;;
+        --minor)
+            INCREMENT="minor"
+            shift
+            ;;
+        --major)
+            INCREMENT="major"
+            shift
+            ;;
         --since)
             SINCE_REF="$2"
+            MODE="changed"
             shift 2
             ;;
         --all)
@@ -62,40 +82,97 @@ while [ $# -gt 0 ]; do
             DRY_RUN=true
             shift
             ;;
+        --help|-h)
+            echo "Uso: $0 [version] [--patch|--minor|--major] [--all|--since <ref>] [--check]"
+            echo ""
+            echo "  Sem argumentos     Auto-increment patch (+0.0.1)"
+            echo "  <version>          Versão explícita (ex: 5.3.0)"
+            echo "  --patch            Increment patch: X.Y.Z → X.Y.(Z+1)"
+            echo "  --minor            Increment minor: X.Y.Z → X.(Y+1).0"
+            echo "  --major            Increment major: X.Y.Z → (X+1).0.0"
+            echo "  --all              Actualizar TODOS os ficheiros (default)"
+            echo "  --since <ref>      Só ficheiros modificados desde <ref>"
+            echo "  --check            Dry-run — mostra o que muda sem alterar"
+            exit 0
+            ;;
         *)
-            echo -e "${RED}Opção desconhecida: $1${NC}"
-            exit 1
+            # Check if it's a version number
+            if echo "$1" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+                NEW_VERSION="$1"
+            else
+                echo -e "${RED}Opção desconhecida: $1${NC}"
+                echo "Usa --help para ver opções."
+                exit 1
+            fi
+            shift
             ;;
     esac
 done
 
-# --- Detect plugin root ---
-PLUGIN_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-cd "$PLUGIN_ROOT"
+# --- Determine new version ---
+if [ -n "$NEW_VERSION" ]; then
+    # Explicit version provided
+    :
+elif [ -n "$INCREMENT" ]; then
+    case "$INCREMENT" in
+        patch)
+            if [ "$PATCH" -ge 9 ]; then
+                NEW_VERSION="$MAJOR.$((MINOR + 1)).0"
+            else
+                NEW_VERSION="$MAJOR.$MINOR.$((PATCH + 1))"
+            fi
+            ;;
+        minor)
+            if [ "$MINOR" -ge 9 ]; then
+                NEW_VERSION="$((MAJOR + 1)).0.0"
+            else
+                NEW_VERSION="$MAJOR.$((MINOR + 1)).0"
+            fi
+            ;;
+        major) NEW_VERSION="$((MAJOR + 1)).0.0" ;;
+    esac
+else
+    # Default: patch bump (+0.0.1, rollover at .9 → minor+1)
+    if [ "$PATCH" -ge 9 ]; then
+        if [ "$MINOR" -ge 9 ]; then
+            NEW_VERSION="$((MAJOR + 1)).0.0"
+        else
+            NEW_VERSION="$MAJOR.$((MINOR + 1)).0"
+        fi
+    else
+        NEW_VERSION="$MAJOR.$MINOR.$((PATCH + 1))"
+    fi
+fi
 
-# Repo root may be parent (multi-plugin repo)
-REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || echo "$PLUGIN_ROOT")"
+# Validate
+if ! echo "$NEW_VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+    echo -e "${RED}Versão inválida: ${NEW_VERSION}${NC}"
+    exit 1
+fi
+
+if [ "$NEW_VERSION" = "$CURRENT_VERSION" ]; then
+    echo -e "${YELLOW}Versão actual já é ${CURRENT_VERSION}. Nada a fazer.${NC}"
+    exit 0
+fi
 
 # --- Version pattern ---
-# Matches: (v5.2.1), — v5.2.0, (v5.1.1), etc. in .md files
-# Also: "version": "5.2.1" in .json files
+# Matches: (v5.2.1), — v5.2.0, (v5.1.1), "5.2.1" in .json, Plugin-Version: 5.2.3 in .sh
 VERSION_REGEX='v[0-9]+\.[0-9]+\.[0-9]+'
+SH_VERSION_REGEX='Plugin-Version: [0-9]+\.[0-9]+\.[0-9]+'
 
 # --- Determine files to check ---
-echo -e "${BOLD}${CYAN}Version Bump: ${NEW_VERSION}${NC}"
+echo -e "${BOLD}${CYAN}Version Bump: ${CURRENT_VERSION} → ${NEW_VERSION}${NC}"
 echo ""
 
+# Collect .md files
 if [ "$MODE" = "all" ]; then
     echo -e "${CYAN}Modo: ALL — verificar todos os ficheiros${NC}"
-    MD_FILES=$(find "$PLUGIN_ROOT" -name '*.md' -not -path '*/docs/v5-archive/*' -not -path '*/.git/*' -not -path '*/.claude/code-reviews/*' | sort)
+    MD_FILES=$(find "$PLUGIN_ROOT" -name '*.md' -not -path '*/docs/*-archive/*' -not -path '*/.git/*' -not -path '*/.claude/code-reviews/*' | sort)
+    SH_FILES=$(find "$PLUGIN_ROOT" -name '*.sh' -not -path '*/.git/*' | sort)
 else
-    # Determine the base reference
     if [ -z "$SINCE_REF" ]; then
-        # Try last tag, fallback to comparing staged+unstaged
         SINCE_REF=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
         if [ -z "$SINCE_REF" ]; then
-            # No tags — use the commit before the first version bump
-            # Fallback: compare against HEAD~1
             echo -e "${YELLOW}Sem tags git. A usar HEAD~5 como referência.${NC}"
             SINCE_REF="HEAD~5"
         fi
@@ -104,92 +181,103 @@ else
     echo -e "${CYAN}Modo: CHANGED — ficheiros modificados desde ${BOLD}${SINCE_REF}${NC}"
     echo ""
 
-    # Get .md files modified since the ref (both committed and uncommitted)
-    COMMITTED=$(git diff --name-only "$SINCE_REF" HEAD -- '*.md' 2>/dev/null || echo "")
-    UNCOMMITTED=$(git diff --name-only -- '*.md' 2>/dev/null || echo "")
-    UNTRACKED=$(git ls-files --others --exclude-standard -- '*.md' 2>/dev/null || echo "")
+    COMMITTED=$(git diff --name-only "$SINCE_REF" HEAD -- '*.md' '*.sh' 2>/dev/null || echo "")
+    UNCOMMITTED=$(git diff --name-only -- '*.md' '*.sh' 2>/dev/null || echo "")
+    UNTRACKED=$(git ls-files --others --exclude-standard -- '*.md' '*.sh' 2>/dev/null || echo "")
 
-    # Combine, deduplicate, resolve to absolute paths within plugin
     ALL_CHANGED=$(echo -e "${COMMITTED}\n${UNCOMMITTED}\n${UNTRACKED}" | sort -u | grep -v '^$' || true)
 
-    # Filter to plugin files only (exclude docs/v5-archive)
     MD_FILES=""
+    SH_FILES=""
     for f in $ALL_CHANGED; do
         FULL="$REPO_ROOT/$f"
         case "$FULL" in
-            "$PLUGIN_ROOT"/docs/v5-archive/*) continue ;;
-            "$PLUGIN_ROOT"/*) MD_FILES="$MD_FILES $FULL" ;;
+            "$PLUGIN_ROOT"/docs/*-archive/*) continue ;;
+            "$PLUGIN_ROOT"/*.md) MD_FILES="$MD_FILES $FULL" ;;
+            "$PLUGIN_ROOT"/*.sh) SH_FILES="$SH_FILES $FULL" ;;
         esac
     done
 fi
 
 # --- JSON files (always checked) ---
-JSON_FILES="$PLUGIN_ROOT/.claude-plugin/plugin.json"
+JSON_FILES="$PLUGIN_JSON"
 MARKETPLACE="$REPO_ROOT/.claude-plugin/marketplace.json"
 if [ -f "$MARKETPLACE" ]; then
     JSON_FILES="$JSON_FILES $MARKETPLACE"
 fi
 
-# --- Process ---
+# --- Counters ---
 UPDATED=0
-SKIPPED=0
 ALREADY_CURRENT=0
 NO_VERSION=0
 
 updated_files=""
-skipped_files=""
 current_files=""
 no_version_files=""
 
-# Function: bump version in a .md file
+# --- Function: bump version in a .md file ---
+# ONLY replaces the CURRENT plugin version (not historical references like "introduced in v3.1.0")
 bump_md() {
     local file="$1"
     local rel
     rel=$(echo "$file" | sed "s|$REPO_ROOT/||")
 
-    # Check if file has any version reference
     if ! grep -qE "$VERSION_REGEX" "$file"; then
         no_version_files="$no_version_files\n  $rel"
         NO_VERSION=$((NO_VERSION + 1))
         return
     fi
 
-    # Check if already at target version
-    if grep -qE "v${NEW_VERSION}" "$file" && ! grep -qE 'v[0-9]+\.[0-9]+\.[0-9]+' "$file" | grep -vq "v${NEW_VERSION}"; then
-        # More precise: check if ALL version refs are already current
-        OLD_REFS=$(grep -oE "$VERSION_REGEX" "$file" | grep -v "v${NEW_VERSION}" | head -1 || true)
-        if [ -z "$OLD_REFS" ]; then
-            current_files="$current_files\n  $rel"
-            ALREADY_CURRENT=$((ALREADY_CURRENT + 1))
-            return
-        fi
+    # Only replace references to the CURRENT version (not older historical ones)
+    if ! grep -qE "v${CURRENT_VERSION}" "$file"; then
+        # File has version refs but not the current version — skip (historical refs only)
+        current_files="$current_files\n  $rel (sem v${CURRENT_VERSION})"
+        ALREADY_CURRENT=$((ALREADY_CURRENT + 1))
+        return
     fi
 
-    # Find old versions in this file
-    OLD_VERSIONS=$(grep -oE "$VERSION_REGEX" "$file" | sort -u | grep -v "v${NEW_VERSION}" || true)
+    COUNT=$(grep -c "v${CURRENT_VERSION}" "$file" || true)
 
-    if [ -z "$OLD_VERSIONS" ]; then
+    if $DRY_RUN; then
+        updated_files="$updated_files\n  ${YELLOW}$rel${NC}: v${CURRENT_VERSION} → v${NEW_VERSION} (${COUNT}x)"
+        UPDATED=$((UPDATED + 1))
+    else
+        sed -i '' "s/v${CURRENT_VERSION}/v${NEW_VERSION}/g" "$file"
+        updated_files="$updated_files\n  ${GREEN}$rel${NC} (${COUNT}x)"
+        UPDATED=$((UPDATED + 1))
+    fi
+}
+
+# --- Function: bump version in a .sh file ---
+bump_sh() {
+    local file="$1"
+    local rel
+    rel=$(echo "$file" | sed "s|$REPO_ROOT/||")
+
+    if ! grep -qE "$SH_VERSION_REGEX" "$file"; then
+        no_version_files="$no_version_files\n  $rel"
+        NO_VERSION=$((NO_VERSION + 1))
+        return
+    fi
+
+    if grep -qE "Plugin-Version: ${NEW_VERSION}" "$file"; then
         current_files="$current_files\n  $rel"
         ALREADY_CURRENT=$((ALREADY_CURRENT + 1))
         return
     fi
 
     if $DRY_RUN; then
-        for old in $OLD_VERSIONS; do
-            COUNT=$(grep -c "$old" "$file" || true)
-            updated_files="$updated_files\n  ${YELLOW}$rel${NC}: $old → v${NEW_VERSION} (${COUNT}x)"
-        done
+        OLD=$(grep -oE 'Plugin-Version: [0-9]+\.[0-9]+\.[0-9]+' "$file" | head -1)
+        updated_files="$updated_files\n  ${YELLOW}$rel${NC}: $OLD → Plugin-Version: ${NEW_VERSION}"
         UPDATED=$((UPDATED + 1))
     else
-        for old in $OLD_VERSIONS; do
-            sed -i '' "s/${old}/v${NEW_VERSION}/g" "$file"
-        done
+        sed -i '' "s/Plugin-Version: [0-9]*\.[0-9]*\.[0-9]*/Plugin-Version: ${NEW_VERSION}/g" "$file"
         updated_files="$updated_files\n  ${GREEN}$rel${NC}"
         UPDATED=$((UPDATED + 1))
     fi
 }
 
-# Function: bump version in a .json file
+# --- Function: bump version in a .json file ---
 bump_json() {
     local file="$1"
     local rel
@@ -199,71 +287,73 @@ bump_json() {
         return
     fi
 
-    # Check current version
-    CURRENT=$(grep -oE '"version": "[0-9]+\.[0-9]+\.[0-9]+"' "$file" | head -1 || true)
-
-    if [ -z "$CURRENT" ]; then
+    # For marketplace.json — only update the clickup-code-review entry, not the marketplace version
+    if echo "$file" | grep -q "marketplace"; then
+        OLD_PLUGIN_VER=$(grep -A5 'clickup-code-review' "$file" | grep -oE '"version": "[0-9]+\.[0-9]+\.[0-9]+"' | head -1 || true)
+        if [ -z "$OLD_PLUGIN_VER" ]; then
+            return
+        fi
+        if echo "$OLD_PLUGIN_VER" | grep -q "\"$NEW_VERSION\""; then
+            current_files="$current_files\n  $rel (clickup-code-review entry)"
+            ALREADY_CURRENT=$((ALREADY_CURRENT + 1))
+            return
+        fi
+        if $DRY_RUN; then
+            updated_files="$updated_files\n  ${YELLOW}$rel${NC}: clickup-code-review $OLD_PLUGIN_VER → \"${NEW_VERSION}\""
+            UPDATED=$((UPDATED + 1))
+        else
+            sed -i '' "/\"clickup-code-review\"/,/\"version\":/{s/\"version\": \"[0-9]*\.[0-9]*\.[0-9]*\"/\"version\": \"${NEW_VERSION}\"/;}" "$file"
+            updated_files="$updated_files\n  ${GREEN}$rel${NC} (clickup-code-review entry)"
+            UPDATED=$((UPDATED + 1))
+        fi
         return
     fi
 
-    if echo "$CURRENT" | grep -q "\"$NEW_VERSION\""; then
-        # For marketplace.json, check plugin-specific version too
-        if echo "$file" | grep -q "marketplace"; then
-            OLD_PLUGIN_VER=$(grep -B2 'clickup-code-review' "$file" | grep -oE '"version": "[0-9]+\.[0-9]+\.[0-9]+"' || true)
-            if [ -n "$OLD_PLUGIN_VER" ] && ! echo "$OLD_PLUGIN_VER" | grep -q "\"$NEW_VERSION\""; then
-                if $DRY_RUN; then
-                    updated_files="$updated_files\n  ${YELLOW}$rel${NC}: clickup-code-review entry needs bump"
-                    UPDATED=$((UPDATED + 1))
-                else
-                    # Update the clickup-code-review version specifically
-                    # Use a temp approach: find the line after clickup-code-review name and update version
-                    sed -i '' "/\"clickup-code-review\"/,/\"version\":/{s/\"version\": \"[0-9]*\.[0-9]*\.[0-9]*\"/\"version\": \"${NEW_VERSION}\"/;}" "$file"
-                    updated_files="$updated_files\n  ${GREEN}$rel${NC} (clickup-code-review entry)"
-                    UPDATED=$((UPDATED + 1))
-                fi
-                return
-            fi
-        fi
+    # For plugin.json — simple replacement
+    CURRENT_JSON=$(grep -oE '"version": "[0-9]+\.[0-9]+\.[0-9]+"' "$file" | head -1 || true)
+    if [ -z "$CURRENT_JSON" ]; then
+        return
+    fi
+
+    if echo "$CURRENT_JSON" | grep -q "\"$NEW_VERSION\""; then
         current_files="$current_files\n  $rel"
         ALREADY_CURRENT=$((ALREADY_CURRENT + 1))
         return
     fi
 
     if $DRY_RUN; then
-        updated_files="$updated_files\n  ${YELLOW}$rel${NC}: $CURRENT → \"version\": \"${NEW_VERSION}\""
+        updated_files="$updated_files\n  ${YELLOW}$rel${NC}: $CURRENT_JSON → \"version\": \"${NEW_VERSION}\""
         UPDATED=$((UPDATED + 1))
     else
-        # For plugin.json — simple replacement
-        if echo "$file" | grep -q "plugin.json" && ! echo "$file" | grep -q "marketplace"; then
-            sed -i '' "s/\"version\": \"[0-9]*\.[0-9]*\.[0-9]*\"/\"version\": \"${NEW_VERSION}\"/" "$file"
-            updated_files="$updated_files\n  ${GREEN}$rel${NC}"
-            UPDATED=$((UPDATED + 1))
-        fi
-
-        # For marketplace.json — update clickup-code-review entry specifically
-        if echo "$file" | grep -q "marketplace"; then
-            sed -i '' "/\"clickup-code-review\"/,/\"version\":/{s/\"version\": \"[0-9]*\.[0-9]*\.[0-9]*\"/\"version\": \"${NEW_VERSION}\"/;}" "$file"
-            updated_files="$updated_files\n  ${GREEN}$rel${NC} (clickup-code-review entry)"
-            UPDATED=$((UPDATED + 1))
-        fi
+        sed -i '' "s/\"version\": \"[0-9]*\.[0-9]*\.[0-9]*\"/\"version\": \"${NEW_VERSION}\"/" "$file"
+        updated_files="$updated_files\n  ${GREEN}$rel${NC}"
+        UPDATED=$((UPDATED + 1))
     fi
 }
 
+# --- Execute ---
 echo ""
 if $DRY_RUN; then
     echo -e "${BOLD}${YELLOW}DRY RUN — sem alterações${NC}"
 fi
 echo ""
 
-# Process JSON files first
+# JSON first
 for f in $JSON_FILES; do
     bump_json "$f"
 done
 
-# Process .md files
+# .md files
 for f in $MD_FILES; do
     if [ -f "$f" ]; then
         bump_md "$f"
+    fi
+done
+
+# .sh files
+for f in $SH_FILES; do
+    if [ -f "$f" ]; then
+        bump_sh "$f"
     fi
 done
 
@@ -288,7 +378,7 @@ if [ $ALREADY_CURRENT -gt 0 ]; then
 fi
 
 if [ $NO_VERSION -gt 0 ]; then
-    echo -e "Sem referência de versão ($NO_VERSION):${NC}"
+    echo -e "Sem referência de versão ($NO_VERSION):"
     echo -e "$no_version_files"
     echo ""
 fi
@@ -309,5 +399,5 @@ fi
 if ! $DRY_RUN && [ $UPDATED -gt 0 ]; then
     echo ""
     echo -e "${GREEN}Pronto para commit.${NC}"
-    echo -e "  git add -A && git commit -m \"chore: bump version references to v${NEW_VERSION}\""
+    echo -e "  git add -A && git commit -m \"chore: bump version to v${NEW_VERSION}\""
 fi

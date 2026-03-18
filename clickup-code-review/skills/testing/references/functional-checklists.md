@@ -1,10 +1,10 @@
-# Functional Test Checklists (v5.2.2)
+# Functional Test Checklists (v5.2.3)
 
 QA Specialist reference for Level 2 (Funcional) testing. Use these checklists for each page type encountered. All items must be verified before marking a page as PASS.
 
 **Ver `testing-protocol.md`** para procedimentos Chrome DevTools MCP passo-a-passo.
 
-**REGRA v5.2.2:** `take_snapshot()` é o PRIMEIRO passo em TODAS as páginas. O snapshot revela os elementos interactivos — sem isto, o agent não sabe o que testar.
+**REGRA v5.2.3:** `take_snapshot()` é o PRIMEIRO passo em TODAS as páginas. O snapshot revela os elementos interactivos — sem isto, o agent não sabe o que testar.
 
 ---
 

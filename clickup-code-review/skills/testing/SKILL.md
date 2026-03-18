@@ -4,7 +4,7 @@ description: Functional browser testing via Chrome DevTools MCP with ClickUp tic
 user_invocable: true
 ---
 
-# ClickUp Code Review — Testing Skill (v5.2.2)
+# ClickUp Code Review — Testing Skill (v5.2.3)
 
 Functional browser testing via Chrome DevTools MCP. Validates post-fix tickets, discovers new bugs, manages QA lifecycle with DA QA-REVIEW.
 
@@ -30,7 +30,7 @@ Functional browser testing via Chrome DevTools MCP. Validates post-fix tickets, 
 
 ---
 
-## Shutdown Rules (v5.2.2)
+## Shutdown Rules (v5.2.3)
 
 ### Quando fechar agentes
 Maestro PODE fechar QA Specialist no FINAL de cada phase. DA e CU Manager persistem toda a sessão.
