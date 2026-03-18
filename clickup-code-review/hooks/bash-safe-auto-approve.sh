@@ -20,10 +20,17 @@
 # falls through to normal Claude Code manual approval (no deny, no allow).
 # Marker file created by each SKILL.md at startup, removed at shutdown.
 
+# Suppress stderr — prevents hook runner from interpreting errors as hook failures
+exec 2>/dev/null
+
+# === GUARD CHECK (only active during plugin skill sessions) ===
+# Guard marker managed by a separate global hook (guard-marker-auto-approve.sh)
 GUARD="$HOME/.clickup-review-active"
 if [ -f "$GUARD" ]; then
     age=$(($(date +%s) - $(stat -f '%m' "$GUARD")))
-    [ "$age" -gt 14400 ] && rm -f "$GUARD"  # 4h stale → remove
+    if [ "$age" -gt 14400 ]; then
+        rm -f "$GUARD"
+    fi
 fi
 if [ ! -f "$GUARD" ]; then
     cat > /dev/null
@@ -215,8 +222,8 @@ if echo "$command" | grep -qE '^echo "\$'; then
     allow
 fi
 
-# rm single file (cleanup of api-payload.json — NOT recursive, already denied rm -rf above)
-if echo "$command" | grep -qE '^rm "[^"]*api-payload\.json"$'; then
+# rm single file in .claude/code-reviews/ (CU Manager temp files — NOT recursive, -rf already denied above)
+if echo "$command" | grep -qE '^rm [^ ]*\.claude/code-reviews/'; then
     allow
 fi
 
