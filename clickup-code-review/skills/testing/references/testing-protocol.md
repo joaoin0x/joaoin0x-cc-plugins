@@ -561,7 +561,7 @@ Login: {TEST_EMAIL} / {TEST_PASSWORD} (from credentials.local.md)
 
 ---
 
-## Verificação por Tipo de Ticket (v5.1.1)
+## Verificação por Tipo de Ticket (v5.2.1)
 
 ### Verificação COMPLETA via browser (QA testa tudo funcionalmente)
 

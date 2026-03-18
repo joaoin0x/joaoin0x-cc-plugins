@@ -1,4 +1,4 @@
-# Functional Test Checklists (v5.1.1)
+# Functional Test Checklists (v5.2.1)
 
 QA Specialist reference for Level 2 (Funcional) testing. Use these checklists for each page type encountered. All items must be verified before marking a page as PASS.
 
