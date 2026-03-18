@@ -120,6 +120,33 @@ Seguir protocolo em `skills/shared/planning-protocol.md`.
 
 ---
 
+## MODE: PREPARE (Read-Ahead Queue — v5.2.0)
+
+Quando Maestro spawna com "MODE: PREPARE":
+
+### Permissoes
+- **PERMITIDO:** Read, Grep, Glob, SendMessage, Write (APENAS para .prepare.md)
+- **PROIBIDO:** Edit source code, git add, git commit, Bash destrutivo
+
+### Procedimento
+1. Ler ticket .md completo (Read tool)
+2. Ler TODOS os ficheiros listados em `#### Planeamento` → `**Ficheiros:**`
+3. Para cada ficheiro: registar mtime via `stat -f '%m' {file}`
+4. Analisar codigo actual — entender o que precisa mudar
+5. Planear fix: que linhas alterar, que adicionar, que remover
+6. Verificar dependencias: algum ficheiro partilhado com outro ticket da wave?
+7. Escrever plano em `{REVIEW_DIR}/prepare/ticket-{id}.prepare.md` (formato no fix-protocol.md)
+8. Reportar ao Maestro via SendMessage: "READY" ou "BLOCKED"
+9. Aguardar shutdown (PREPARE termina aqui)
+
+### Transicao PREPARE → IMPLEMENT
+O Maestro re-spawna em MODE: FIX (= IMPLEMENT) com paths:
+- Ticket .md + .prepare.md (plano preparado) + staleness flag (se aplicavel)
+- Se STALE: re-ler APENAS ficheiros alterados, adaptar plano, prosseguir
+- Se FRESH: executar plano directamente
+
+---
+
 ## MODE: FIX (used by /clickup-code-review:fix)
 
 Seguir protocolo em `skills/shared/fix-protocol.md`.

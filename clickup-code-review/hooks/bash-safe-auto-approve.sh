@@ -25,10 +25,33 @@ deny() {
     exit 0
 }
 
+# Helper: emit auto-allow
+allow() {
+    echo '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow"}}'
+    exit 0
+}
+
+# === EARLY WHITELIST (before deny list — safe commands that contain deny-list patterns) ===
+
+# Git commit single-line: approved early because heredoc/substitution patterns in commit
+# messages would trigger deny checks. --no-verify/--amend still denied.
+if echo "$command" | grep -qE '^git commit -m '; then
+    if echo "$command" | grep -qE '(--no-verify|--amend)'; then
+        deny "git commit --no-verify/--amend proibido."
+    fi
+    allow
+fi
+
 # === DENY LIST (checked FIRST — auto-denied, no user prompt) ===
 
-# Chained commands (MUST be first check)
-if echo "$command" | grep -qE '&&|\|\||;'; then
+# Chained commands: && || ; (logical operators and statement separators)
+# NOTE: Single pipe | is NOT denied here (read-only pipes are whitelisted below)
+if echo "$command" | grep -qE '&&|;'; then
+    deny "Comandos encadeados proibidos. Usar single-statement Bash."
+fi
+
+# Logical OR || (must be separate from pipe | detection)
+if echo "$command" | grep -qE '\|\|'; then
     deny "Comandos encadeados proibidos. Usar single-statement Bash."
 fi
 
@@ -115,76 +138,69 @@ fi
 
 # === WHITELIST (single-statement only, deny list already passed) ===
 
-# Git read-only operations
-if echo "$command" | grep -qE '^git (status|diff|log|branch|show|rev-parse|stash list|ls-files|shortlog)'; then
-    echo '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow"}}'
-    exit 0
+# Git read-only operations (with optional -C path prefix)
+if echo "$command" | grep -qE '^git (-C [^ ]+ )?(status|diff|log|branch|show|rev-parse|stash list|ls-files|shortlog)'; then
+    allow
 fi
 
-# Git diff staged
-if echo "$command" | grep -qE '^git diff --staged'; then
-    echo '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow"}}'
-    exit 0
+# Git diff staged (with optional -C path prefix)
+if echo "$command" | grep -qE '^git (-C [^ ]+ )?diff --staged'; then
+    allow
 fi
 
-# Git add specific files (not . or -A, already denied above)
-if echo "$command" | grep -qE '^git add '; then
-    echo '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow"}}'
-    exit 0
+# Git add specific files (not . or -A, already denied above; with optional -C)
+if echo "$command" | grep -qE '^git (-C [^ ]+ )?add '; then
+    allow
 fi
 
-# Git commit
-if echo "$command" | grep -qE '^git commit'; then
-    echo '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow"}}'
-    exit 0
+# Git commit (with optional -C path prefix; --no-verify/--amend caught in early whitelist)
+if echo "$command" | grep -qE '^git (-C [^ ]+ )?commit'; then
+    allow
 fi
 
-# Git branch creation / checkout existing
-if echo "$command" | grep -qE '^git (checkout|switch)'; then
-    echo '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow"}}'
-    exit 0
+# Git branch creation / checkout existing (with optional -C path prefix)
+if echo "$command" | grep -qE '^git (-C [^ ]+ )?(checkout|switch)'; then
+    allow
+fi
+
+# Safe pipe patterns: git read-only | filter tool (pipe already passed deny list)
+if echo "$command" | grep -qE '^git (-C [^ ]+ )?(log|diff|show|branch|ls-files|shortlog|status|rev-parse) .+\| *(grep|head|tail|wc|sort|uniq|cut|awk) '; then
+    allow
 fi
 
 # Test suite runners
 if echo "$command" | grep -qE '^(sail artisan test|php artisan test|./vendor/bin/phpunit|./vendor/bin/pest|vendor/bin/phpunit|vendor/bin/pest)'; then
-    echo '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow"}}'
-    exit 0
+    allow
 fi
 
 # Safe read-only commands (find only approved without -exec/-delete)
-if echo "$command" | grep -qE '^(grep |cat |head |tail |wc |ls |find |printenv |date )'; then
-    echo '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow"}}'
-    exit 0
+if echo "$command" | grep -qE '^(grep |cat |head |tail |wc |ls |find |printenv |date |stat )'; then
+    allow
 fi
 
 # Environment variable check (single printenv without flags)
 if echo "$command" | grep -qE '^printenv [A-Z_]+$'; then
-    echo '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow"}}'
-    exit 0
+    allow
 fi
 
 # Directory creation
 if echo "$command" | grep -qE '^mkdir -p '; then
-    echo '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow"}}'
-    exit 0
+    allow
 fi
 
 # curl API calls (CU Manager needs these — already single-statement at this point)
 if echo "$command" | grep -qE '^(curl |RESPONSE=\$\(curl )'; then
-    echo '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow"}}'
-    exit 0
+    allow
 fi
 
 # echo with variable (extracting API response data — safe read-only)
 if echo "$command" | grep -qE '^echo "\$'; then
-    echo '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow"}}'
-    exit 0
+    allow
 fi
 
 # rm single file (cleanup of api-payload.json — NOT recursive, already denied rm -rf above)
 if echo "$command" | grep -qE '^rm "[^"]*api-payload\.json"$'; then
-    echo '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow"}}'
-    exit 0
+    allow
 fi
 
 # No match → fall through to manual approval (safe by default)

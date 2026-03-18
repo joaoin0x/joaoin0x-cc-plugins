@@ -17,26 +17,27 @@ Execute planned fixes for validated tickets. Manage branches, coordinate special
 1. **Phase 0** — Configuration check + status mapping + resume detection
 2. **Phase 0B** — Fetch "ready for dev" tickets, area selection, wave plan
 3. **Phase 0C** — Branch setup (`fix/clickup-review-YYYY-MM-DD`)
-4. **Phase 1-N** — Wave execution (sequential waves, parallel tickets within waves)
+4. **Phase 1-N** — Wave execution (Read-Ahead Queue: PREPARE paralelo + IMPLEMENT serial)
 5. **Phase Final** — Summary with commit log
 
-### Per-Ticket Cycle (within a wave)
+### Read-Ahead Queue (v5.2.0)
 
+**Phase A — PREPARE (paralelo, max 3 simultaneous):**
 ```
-0. Maestro fetches comments → compares against last_comment_id in local .md
-   - Breaking contradiction → SKIP, queue for re-planning
-   - Non-breaking adjustment → Adapt local .md, continue
-   - Compatible → Proceed normally
-1. Update status → "in progress"
-2. Read ticket context from local .md file (not from ClickUp API)
-3. Spawn specialist agent (same agent type that found the issue)
-4. Specialist implements fix → stages with git add → captures diff
-5. Specialist sends diff + full context to DA via SendMessage
-6. DA reviews (CODE-REVIEW mode) → APPROVED or REQUEST-CHANGES
-7. If APPROVED → Maestro commits → updates local .md frontmatter
-8. QA validation (unit/e2e/both/none based on Planeamento)
-9. If QA PASS → update status → "deploy to staging" → update frontmatter
-10. If QA FAIL → git revert, retry (max 2 attempts) → update frontmatter
+- Specialists read ticket + source files (read-only)
+- Persist plan to {REVIEW_DIR}/prepare/ticket-{id}.prepare.md
+- Report READY/BLOCKED → terminate
+```
+
+**Phase B — IMPLEMENT (serial, 1 at a time):**
+```
+0. Maestro fetches comments → assesses impact
+1. Staleness check: compare file mtimes vs .prepare.md
+2. Re-spawn specialist in MODE: IMPLEMENT with .prepare.md
+3. Specialist implements fix → stages → sends diff to DA
+4. DA CODE-REVIEW → APPROVED / REQUEST-CHANGES
+5. APPROVED → Maestro commits → next ticket
+6. Evidence gate → status "testing"
 ```
 
 ## Key Principles

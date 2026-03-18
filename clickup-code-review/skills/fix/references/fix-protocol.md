@@ -1,11 +1,11 @@
-# Fix Protocol Reference (v5.0)
+# Fix Protocol Reference (v5.2.0)
 
 Technical reference for the fixing skill. The Maestro, specialist agents, DA, ClickUp Manager, and QA agents use this document for commit procedures, review protocols, evidence gates, and error handling.
 
 **v5.0 Changes vs v4:**
 - Evidence gate protocol for every status transition
 - "code review" intermediate status
-- Serial Queue for staging isolation (v5.1.1)
+- Read-Ahead Queue: PREPARE paralelo + IMPLEMENT serial (v5.2.0)
 - Commit SHA + Branch binding in ticket description
 - `#### Decisões Fix` mandatory documentation
 - All ClickUp operations via ClickUp Manager
@@ -200,36 +200,123 @@ ClickUp Manager consolidates `{REVIEW_DIR}/progress/agent-{name}-progress.md` in
 
 ---
 
-## Serial Queue (v5.1.1)
+## Read-Ahead Queue (v5.2.0)
 
-**1 specialist de cada vez. Zero staging compartilhado.**
+**PREPARE paralelo (read-only, max 3) → persist .prepare.md → IMPLEMENT serial (write/stage).**
 
-1. Maestro despacha 1 ticket para 1 specialist
-2. Specialist implementa + stage + envia diff ao DA
-3. DA revê → APPROVED / REQUEST-CHANGES
-4. Se APPROVED → Maestro commita → staging limpo
-5. Se REQUEST-CHANGES → specialist corrige → re-stage → DA round 2
-6. Só após commit (ou skip) → despachar PRÓXIMO ticket
-7. Wave grouping mantém-se para ordenação/dependências
+### Phase A — PREPARE (paralelo, max 3 simultâneos)
 
-**FORBIDDEN (Maestro):**
-- NUNCA spawnar 2+ specialists simultaneamente
-- NUNCA pre-dispatch enquanto DA revê ou staging ocupado
-- NUNCA qualquer variante de staging paralelo
+1. Maestro spawna até 3 specialists em **MODE: PREPARE**
+   - Specialists com dependências conhecidas NÃO são spawned nesta batch
+2. Cada specialist (PREPARE):
+   a. Lê ticket .md + TODOS os source files do Planeamento
+   b. Regista mtimes dos ficheiros-alvo via `stat -f '%m' {file}`
+   c. Planeia fix (que linhas alterar, adicionar, remover)
+   d. Escreve plano em `{REVIEW_DIR}/prepare/ticket-{id}.prepare.md`
+   e. Reporta "READY" ou "BLOCKED" ao Maestro via SendMessage
+   f. Specialist termina (shutdown)
+3. Se wave > 3 tickets: após batch terminar, spawnar próxima batch (FIFO)
+4. BLOCKED: reporta ao Maestro, NÃO escreve .prepare.md
+
+### Phase B — IMPLEMENT (serial, 1 de cada vez)
+
+5. Antes de dispatch, Maestro faz **staleness check**:
+   a. Lê .prepare.md → extrai lista de target files com mtimes
+   b. Compara mtimes actuais vs registados (`stat -f '%m' {file}`)
+   c. Se stale: flag "STALE — ficheiros alterados: {list}"
+6. Maestro re-spawna specialist em **MODE: IMPLEMENT** com:
+   - Ticket .md path + .prepare.md path + staleness flag (se aplicável)
+7. Specialist: lê .prepare.md → se stale re-lê ficheiros → implementa → stage → diff ao DA
+8. DA: CODE-REVIEW → APPROVED / REQUEST-CHANGES
+9. APPROVED → Maestro commita → dispatch próximo
+
+### Phase C — UNBLOCK (quando blocker committed)
+
+10. Após commit de blocker → spawnar PREPARE para specialists BLOCKED
+11. Segue Phase A normal (persist + terminate)
+
+### Deadlock Detection
+
+Se A BLOCKED on B e B BLOCKED on A → mover ticket com menor prioridade para próxima wave.
+Log: "Deadlock detectado: {A} e {B} bloqueiam-se mutuamente."
+
+### Fallback to Serial
+
+Se PREPARE falha para qualquer specialist → esse ticket executa em modo serial (sem .prepare.md).
+Restantes mantêm Read-Ahead.
+
+### .prepare.md Format
+
+```markdown
+# PREPARE Report — {Ticket Title}
+**Ticket ID:** {clickup_task_id}
+**Status:** READY | BLOCKED
+**Specialist:** {agent-type}
+**Timestamp:** {ISO}
+
+## Target Files (com mtimes para staleness check)
+| File | mtime | Lines to Modify |
+|------|-------|----------------|
+| `{file1.php}` | {epoch} | L45-67: add null check |
+| `{file2.blade.php}` | {epoch} | L12: fix form action |
+
+## Planned Changes
+### {file1.php}
+- L45-67: Adicionar null check antes do foreach
+- Razão: $rows pode ser null se CSV vazio
+
+### {file2.blade.php}
+- L12: Corrigir form action de POST para PUT
+- Razão: Route usa PUT para update
+
+## Dependencies
+- None
+  OU:
+- BLOCKED by {ticket_id}: modifica `{shared_file}` (L30-50) que este ticket também precisa
+
+## Estimated Scope
+- Files: {N} | Lines: ~{estimate}
+```
+
+### Staleness Check Protocol
+
+Maestro executa ANTES de cada IMPLEMENT dispatch:
+
+```
+1. Read {REVIEW_DIR}/prepare/ticket-{id}.prepare.md
+2. Para cada ficheiro na tabela "Target Files":
+   a. stat -f '%m' {filepath}
+   b. Comparar epoch actual vs epoch registado
+3. Se TODOS iguais: FRESH → dispatch IMPLEMENT normalmente
+4. Se ALGUM diferente: STALE → incluir flag no spawn:
+   "STALE — ficheiros alterados: {file1}, {file2}"
+5. Specialist em MODE: IMPLEMENT com flag STALE:
+   a. Re-lê APENAS ficheiros alterados
+   b. Adapta plano conforme diferenças
+   c. Prossegue com implementação
+```
+
+**FORBIDDEN (Read-Ahead Queue):**
+- NUNCA spawnar >3 specialists em PREPARE simultaneamente
+- NUNCA dar IMPLEMENT a 2+ specialists simultaneamente
+- NUNCA dar IMPLEMENT a specialist BLOCKED (sem resolver blocker)
+- NUNCA spawnar PREPARE para ticket com dependência conhecida não-resolvida
+- PREPARE specialists NÃO fazem Write/Edit/git add — EXCEPTO escrever .prepare.md
+- NUNCA fazer IMPLEMENT sem staleness check do .prepare.md
+- NUNCA pre-dispatch IMPLEMENT enquanto DA revê ou staging ocupado
 
 ---
 
 ## Commit Format
 
 ```bash
-git commit -m "$(cat <<'EOF'
-fix: {concise description from ticket}
+git commit -m "fix: {concise description from ticket}
 
 Ticket: {clickup_task_id}
-Area: {security/backend-perf/frontend/quality/complexity/qa}
-EOF
-)"
+Area: {area}"
 ```
+
+**CRITICAL: NEVER use heredoc, AI attribution, or command substitution in commits. Multi-line via quotes only.**
 
 **CRITICAL: Only the Maestro commits. Never a specialist or DA.**
 
