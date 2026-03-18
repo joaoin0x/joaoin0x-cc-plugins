@@ -1,0 +1,32 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "joaoin0x-cc-plugins",
+  "version": "1.0.0",
+  "description": "Personal Claude Code plugins by joaoin0x",
+  "owner": {
+    "name": "joaoin0x",
+    "email": "joaodavidantunes@gmail.com"
+  },
+  "plugins": [
+    {
+      "name": "local-code-review",
+      "description": "Multi-agent code review for local changes (staged, unstaged, commits, branches)",
+      "version": "1.0.0",
+      "source": "./local-code-review",
+      "category": "development",
+      "author": {
+        "name": "joaoin0x"
+      }
+    },
+    {
+      "name": "clickup-code-review",
+      "description": "Multi-agent code review lifecycle with ClickUp integration: audit, planning, fixing, and testing with Devil's Advocate filtering and evidence-based status gates",
+      "version": "5.1.1",
+      "source": "./clickup-code-review",
+      "category": "development",
+      "author": {
+        "name": "joaoin0x"
+      }
+    }
+  ]
+}
