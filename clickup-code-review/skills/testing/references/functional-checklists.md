@@ -1,30 +1,68 @@
-# Functional Test Checklists (v5.2.3)
+# Functional Test Checklists (v5.2.4)
 
 QA Specialist reference for Level 2 (Funcional) testing. Use these checklists for each page type encountered. All items must be verified before marking a page as PASS.
 
 **Ver `testing-protocol.md`** para procedimentos Chrome DevTools MCP passo-a-passo.
 
-**REGRA v5.2.3:** `take_snapshot()` é o PRIMEIRO passo em TODAS as páginas. O snapshot revela os elementos interactivos — sem isto, o agent não sabe o que testar.
+**REGRA:** `take_snapshot()` é o PRIMEIRO passo em TODAS as páginas. O snapshot revela os elementos interactivos — sem isto, o agent não sabe o que testar.
 
 ---
 
-## Navigation Consistency (OBRIGATÓRIO — todas as páginas)
+## Navigation & Menu Consistency (OBRIGATÓRIO — todas as páginas)
 
 - [ ] Página alcançável via menu/sidebar? (se não → "página órfã" finding)
 - [ ] Breadcrumbs presentes e correctos?
 - [ ] Back button/link funciona?
-- [ ] Menu item activo corresponde à página actual?
+- [ ] Menu item activo corresponde à página actual? (active state visível: background/border/font-weight)
+- [ ] Menu mantém expansão correcta? (secção pai expandida, não colapsa ao navegar)
+- [ ] Ao navegar entre páginas do mesmo módulo: menu não colapsa desnecessariamente?
+- [ ] Active state MUDA ao navegar (não fica "preso" na página anterior)?
 
 ---
 
 ## Design System Consistency (OBRIGATÓRIO em funcional/completo)
 
-- [ ] Botões primários: mesmas classes/estilo que baseline?
+**Baseline:** Ler `.claude/design-system-baseline.local.md` (se existir). Se não existir, o QA deve criá-lo primeiro (ver testing-protocol.md, secção "Design System — Source of Truth").
+
+- [ ] Botões primários: mesmas classes/estilo que baseline (design system)?
 - [ ] Tabelas: mesmo componente/estrutura que baseline?
 - [ ] Forms: labels, inputs, error messages consistentes com baseline?
 - [ ] Cards/containers: layout consistente com baseline?
 - [ ] Tipografia: headings, body text consistentes?
+- [ ] Cores: consistentes com paleta do design system?
 - [ ] Se desvio encontrado → registar + incluir no relatório
+- [ ] Se baseline vem de Design System documentado → confiança 90%+
+- [ ] Se baseline inferido das páginas → confiança 70%
+
+---
+
+## Visual/UI Quality (OBRIGATÓRIO em funcional/completo — v5.2.4)
+
+- [ ] Elementos alinhados correctamente? (botões, labels, colunas de tabela)
+- [ ] Texto cortado ou overflow? (avaliar via evaluate_script se necessário)
+- [ ] Elementos sobrepostos?
+- [ ] Contraste de cores adequado para legibilidade?
+- [ ] Cores semânticas correctas? (success=verde, danger=vermelho, warning=amarelo)
+- [ ] Hierarquia visual clara? (headings, secções, agrupamentos lógicos)
+- [ ] Acções primárias visíveis e destacadas? Acções perigosas diferenciadas?
+- [ ] Espaçamento adequado entre secções?
+- [ ] Layout intuitivo e bem organizado? (não confuso, não "wall of data")
+
+---
+
+## Critical Thinking & Edge Cases (OBRIGATÓRIO em funcional/completo — v5.2.4)
+
+O QA pensa como utilizador real COM conhecimentos de dev/QA. Não testa apenas o "happy path".
+
+- [ ] Edge cases testados? (valores zero, negativos, máximos, caracteres especiais)
+- [ ] Datas: sobreposições, datas passadas, feriados, fins-de-semana (se aplicável)?
+- [ ] Submeter form 2x seguidas — comportamento correcto?
+- [ ] Back button após submit — comportamento correcto? (não re-submete?)
+- [ ] Campos opcionais: submeter só com obrigatórios funciona?
+- [ ] Impacto cross-module verificado? (acção no módulo A afecta módulo B?)
+- [ ] Pesquisa com termos especiais: caracteres especiais, strings muito longas?
+- [ ] Filtros combinados: múltiplos filtros + pesquisa + paginação simultânea?
+- [ ] Fluxo realista: criar → perceber erro → editar → corrigir → resultado correcto?
 
 ---
 
@@ -170,3 +208,7 @@ QA Specialist reference for Level 2 (Funcional) testing. Use these checklists fo
 - If test cannot be completed (missing test data, permissions): log as SKIPPED with reason
 - Every interactive element counts — do not skip buttons, links, or filters
 - Registar NAV_METHOD (sidebar/link/url_directa) para cada página no progress log
+- **Design System baseline** persiste em `.claude/design-system-baseline.local.md` — ler no início, criar se não existir
+- **Pensamento crítico:** não testar apenas o happy path — procurar activamente formas de "partir" a aplicação
+- **Cross-module:** verificar se acções num módulo afectam módulos relacionados
+- **Visual/UI:** verificar alinhamento, cores, contraste, menu active state, layout intuitivo

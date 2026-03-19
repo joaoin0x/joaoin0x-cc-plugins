@@ -1,10 +1,10 @@
 ---
 name: clickup-code-review:testing
-description: Functional browser testing via Chrome DevTools MCP with ClickUp ticket lifecycle management. Validates post-fix tickets, discovers new bugs, handles QA fail severity routing (MINOR/MODERATE/CRITICAL). Uses DA QA-REVIEW for ticket validation and FINDING-FILTER for new bugs. Use when the user asks to "test the application", "run browser tests", "validate the fixes", "run functional tests", or "check tickets in testing status".
+description: Functional browser testing via Chrome DevTools MCP with ClickUp ticket lifecycle management. Validates post-fix tickets, discovers new bugs, handles QA fail severity routing (MINOR/MODERATE/CRITICAL). Uses DA QA-REVIEW for ticket validation and FINDING-FILTER for new bugs. This skill should be used when the user says "test the application", "run browser tests", "validate the fixes", "run functional tests", "check tickets in testing status", "check design system consistency", or "run visual/UI quality checks".
 user_invocable: true
 ---
 
-# ClickUp Code Review — Testing Skill (v5.2.3)
+# ClickUp Code Review — Testing Skill (v5.2.4)
 
 Functional browser testing via Chrome DevTools MCP. Validates post-fix tickets, discovers new bugs, manages QA lifecycle with DA QA-REVIEW.
 
@@ -24,26 +24,37 @@ Functional browser testing via Chrome DevTools MCP. Validates post-fix tickets, 
 5. NUNCA usar `/tmp/`. Tudo em `.claude/code-reviews/`.
 6. NUNCA assumir scope. Se o user não especificou, PERGUNTAR via AskUserQuestion.
 7. NUNCA fechar tickets sem validação de DA.
-8. NUNCA enviar shutdown_request sem que DA e CU Manager confirmem SEM pendentes.
+8. NUNCA enviar shutdown_request sem ordem EXPLÍCITA do user. Ver Shutdown Rules.
 9. NUNCA gerar bash multi-linha ou com `&&`/`||`/`;`. Cada Bash call = 1 statement.
    Para listar ficheiros: **Glob TOOL**. Para ler: **Read TOOL**.
+10. NUNCA criar tickets directamente. TODA criação de tickets vai via CU Manager.
+    Maestro instrui CU Manager via SendMessage, NUNCA usa a API directamente.
+11. NUNCA saltar o DA. QUALQUER finding (bugs, órfãs, design, visual, i18n)
+    deve ser encaminhado ao DA para FINDING-FILTER antes de criar ticket.
+    "Factual" não significa "relevante" — o DA valida relevância.
+12. NUNCA acumular findings para batch. Cada DA verdict → SendMessage ao CU Manager
+    IMEDIATAMENTE (streaming). Não esperar pelo fim da sessão.
 
 ---
 
-## Shutdown Rules (v5.2.3)
+## Shutdown Rules (v5.2.4)
 
-### Quando fechar agentes
-Maestro PODE fechar QA Specialist no FINAL de cada phase. DA e CU Manager persistem toda a sessão.
+### Regra Absoluta
+NUNCA enviar shutdown_request a QUALQUER agente sem ordem EXPLÍCITA do user.
+Agentes ficam em standby após completar o seu trabalho.
+O user decide quando fechar — NÃO o Maestro.
 
-### Protocolo de shutdown
+### Protocolo (quando o user PEDIR para fechar)
 ANTES de shutdown_request:
 1. Perguntar ao DA: "Tens processos pendentes com {specialist}?"
 2. Perguntar ao CU Manager: "Tens syncs pendentes com {specialist}?"
 3. SÓ se AMBOS confirmarem "sem pendentes" → enviar shutdown_request
 
 ### FORBIDDEN
-- NUNCA fechar DA ou CU Manager (excepto fim de sessão por ordem do user)
+- NUNCA fechar agentes por iniciativa própria (NUNCA, sem excepções)
+- NUNCA fechar DA ou CU Manager sem ordem explícita do user
 - NUNCA fechar specialists a MEIO de uma phase
+- Apresentar summary e ESPERAR — o user pode querer reutilizar agentes
 
 ---
 
@@ -95,7 +106,7 @@ ANTES de shutdown_request:
      MODE: QA-REVIEW
      Plugin root: {PLUGIN_ROOT}
      Lê o teu agent .md em {PLUGIN_ROOT}/agents/devils-advocate.md
-     Lê references/testing-protocol.md (secção QA→DA SendMessage Templates)
+     Lê {PLUGIN_ROOT}/skills/testing/references/testing-protocol.md (secção QA→DA SendMessage Templates)
      Vais receber evidência do QA Specialist via SendMessage.
      Para cada ticket: emitir QA-APPROVED ou QA-REJECTED + severity.
      Para findings novos: emitir APPROVED ou REJECTED (FINDING-FILTER).
@@ -108,16 +119,21 @@ ANTES de shutdown_request:
      MODE: TESTING
      Plugin root: {PLUGIN_ROOT}
      Lê o teu agent .md em {PLUGIN_ROOT}/agents/qa-specialist.md
-     Lê references/testing-protocol.md (Snapshot-First + Human Navigation + Design System)
+     Lê references/testing-protocol.md (Snapshot-First + Human Usage + Design System SOT + Visual/UI)
      Lê references/functional-checklists.md (checklists funcionais por tipo de página)
 
      REGRAS CRITICAS:
      1. Snapshot-First: take_snapshot() como PRIMEIRO passo após cada navegação
-     2. Human Navigation: navegar via menus/sidebar, NÃO por URL directa
-     3. Design System: comparar elementos com baseline entre páginas
+     2. Human Usage: NÃO apenas navegar — UTILIZAR como cliente real. Stress test, edge cases.
+     3. Design System SOT: verificar .claude/design-system-baseline.local.md PRIMEIRO.
+        Se não existe: procurar design system no projecto (CLAUDE.md, docs, componentes,
+        página "Desenvolvimento" na app com conta super). Persistir baseline no ficheiro.
+        Fallback: inferir das primeiras 3 páginas (confiança 70%).
      4. Interagir com TODOS os elementos do snapshot (não apenas navegar)
      5. "Navigate + title check" = smoke. Funcional = snapshot + interact + verify.
-     6. Evidência para o DA deve listar CADA interacção concreta.
+     6. Visual/UI: verificar alinhamento, cores, contraste, menu active state, layout.
+     7. Pensamento crítico: edge cases, cross-module impact, fluxos realistas.
+     8. Evidência para o DA deve listar CADA interacção concreta.
      ```
 
 6. QA Specialist: verify Chrome DevTools MCP available. If NOT → report to Maestro → STOP.
@@ -258,21 +274,38 @@ For EACH ticket at "testing":
 1. QA Specialist: read local `.md` → navigate URL → reproduce original bug scenario → verify FIXED
 2. QA Specialist: verify no regressions (console, network, CRUD)
 3. QA Specialist → DA (QA-REVIEW): send evidence (ticket ID, URLs, actions, bug status, console, network)
-4. DA APPROVED → CU Manager: status → "deploy to staging" + add `#### QA Results` + `#### Decisões Testing`
-5. DA REJECTED → severity routing:
+4. DA APPROVED → Maestro envia IMEDIATAMENTE ao CU Manager: status → "deploy to staging" + add `#### QA Results` + `#### Decisões Testing`
+5. DA REJECTED → Maestro envia IMEDIATAMENTE ao CU Manager: severity routing:
    - MINOR → status: "ready for dev" (quick-fix)
    - MODERATE/CRITICAL → status: "planning" + Maestro alert
+
+**REGRA STREAMING:** Após CADA DA verdict, Maestro envia ao CU Manager IMEDIATAMENTE.
+Não acumular verdicts — cada ticket processado individualmente, em tempo real.
 
 For security/performance tickets: DA does COMBINED QA-REVIEW + CODE-REVIEW (browser evidence + source code).
 
 ---
 
-## Phase 5: New Bug Discovery
+## Phase 5: New Finding Discovery
 
-Bugs found during smoke/funcional/completo:
+**TODOS** os findings do QA passam por este fluxo — sem excepções:
+
+Tipos de findings (lista exaustiva):
+1. Bugs funcionais (500, CRUD broken, forms, validation, etc.)
+2. Páginas órfãs (rotas sem link na UI — do cross-check com routes)
+3. Design system inconsistências (desvios do baseline)
+4. Visual/UI problemas (alinhamento, cores, menu active state, layout)
+5. Edge case failures (stress test, cross-module impact)
+6. i18n / acentos / brasileirismos
+
+Fluxo (OBRIGATÓRIO para CADA finding):
 1. QA Specialist → DA (FINDING-FILTER): Standard Finding Format
-2. DA APPROVED → CU Manager: create new ticket (status "open")
-3. DA REJECTED → log, no ticket
+2. DA APPROVED → Maestro envia IMEDIATAMENTE ao CU Manager: create new ticket (status "open")
+3. DA REJECTED → Maestro regista no log, no ticket
+
+**PROIBIDO:** Maestro NUNCA cria tickets directamente. Tudo via CU Manager.
+**PROIBIDO:** Maestro NUNCA salta o DA. Mesmo findings "factuais" precisam de validação.
+**PROIBIDO:** Maestro NUNCA acumula findings. Cada DA verdict → CU Manager em tempo real.
 
 ---
 

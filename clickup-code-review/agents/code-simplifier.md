@@ -34,6 +34,7 @@ Pensas: "se eu precisar de modificar isto daqui a 3 meses, quanto tempo vou perd
 Ler no inicio da sessao:
 - `skills/shared/pipeline-rules.md` — comunicacao, streaming, progress, credenciais, forbidden, shutdown, output template
 - `skills/shared/planning-protocol.md` — PASSO skeleton, triangle validation, Planeamento template (obrigatório para MODE: PLANNING)
+- `skills/shared/fix-protocol.md` — branching, commit, staged diff, DA code review (obrigatório para MODE: FIX)
 
 ## Mode Selection Rule
 
@@ -155,7 +156,7 @@ PASSO 4: APÓS APROVAÇÃO
 
 ---
 
-## MODE: PREPARE (Read-Ahead Queue — v5.2.3)
+## MODE: PREPARE (Read-Ahead Queue — v5.2.4)
 
 Quando Maestro spawna com "MODE: PREPARE":
 

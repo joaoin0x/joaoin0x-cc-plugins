@@ -133,16 +133,29 @@ REGRA: Screenshots = ferramenta de trabalho — APAGAR antes de terminar.
 
 ---
 
-## MODE: TESTING (standalone — /clickup-code-review:testing) — v5.2.3
+## MODE: TESTING (standalone — /clickup-code-review:testing) — v5.2.4
 
-Teste funcional completo via Chrome DevTools MCP. **Snapshot-First + Human Navigation + Design System.**
+Teste funcional completo via Chrome DevTools MCP.
+**Snapshot-First + Human Usage + Design System SOT + Critical Thinking + Visual/UI.**
+
+Postura: humano COM conhecimentos de QA/dev. Não apenas navegar — UTILIZAR a plataforma
+como um cliente real faria. Procurar activamente formas de "partir" a aplicação.
 
 ```
 PASSO 0: SETUP
-  - Chrome DevTools MCP + login
+  - Chrome DevTools MCP + login (conta super/admin para acesso máximo)
   - Modo: 'tickets' | 'smoke' | 'funcional' | 'completo'
-  - Ler references/testing-protocol.md (Snapshot-First + Human Navigation + Design System)
+  - Ler references/testing-protocol.md (Snapshot-First + Human Usage + Design System SOT + Visual/UI)
   - Ler references/functional-checklists.md (checklists por tipo de pagina)
+
+PASSO 0B: DESIGN SYSTEM BASELINE (funcional/completo — ANTES de testar páginas)
+  - Verificar se .claude/design-system-baseline.local.md existe
+  - Se NÃO existe: executar descoberta (ver testing-protocol.md "Design System — Source of Truth")
+    a) Procurar no CLAUDE.md, docs/, componentes Blade/Vue, CSS/Tailwind
+    b) Após login: procurar no menu por "Desenvolvimento"/"Design System"/"Style Guide"
+    c) Se encontrado: navegar → take_snapshot() → extrair padrões → persistir
+    d) Se NÃO encontrado: usar primeiras 3 páginas como fallback (confiança 70%)
+  - Se JÁ existe: ler e usar como baseline
 
 PASSO 1: MAPEAR PAGINAS
   - 'tickets': fetch tickets em "testing" → navegar por URL (excepção permitida)
@@ -165,17 +178,26 @@ PASSO 2: EXECUTAR TESTES (por pagina — Snapshot-First)
     c) Interagir com CADA elemento: click, fill, select, press_key
     d) Verificar resultado de cada interacção
     e) CRUD completo: Create → Show → Edit → Delete (ciclo COMPLETO)
-    f) Design System check: comparar elementos com baseline (ver testing-protocol.md)
-       Primeira pagina: criar baseline em {REVIEW_DIR}/qa/design-patterns-baseline.md
-       Subsequentes: comparar. Desvios significativos → finding ao DA
-    g) Navigation Consistency: breadcrumbs, active menu, back button
+    f) Design System check: comparar com .claude/design-system-baseline.local.md
+       Desvios significativos → finding ao DA (confiança depende da fonte do baseline)
+    g) Visual/UI check: alinhamento, overflow, cores, contraste, layout intuitivo
+    h) Menu check: active state, expansão correcta, consistência ao navegar
+    i) Navigation Consistency: breadcrumbs, active menu, back button
 
-  Exemplo com 9 interacções (Listing page):
+  PENSAMENTO CRÍTICO (funcional/completo):
+    j) Edge cases: valores extremos, caracteres especiais, datas sobrepostas
+    k) Cross-module: acção no módulo A → verificar impacto no módulo B
+    l) Stress: filtros combinados, pesquisa + paginação, submit duplo
+    m) Fluxos realistas: criar → errar → corrigir → verificar resultado
+    n) Back button após submit, form com apenas campos obrigatórios, etc.
+
+  Exemplo com 9+ interacções (Listing page):
     take_snapshot → search (fill+enter) → pagination (click next) →
     filter (select option) → sort (click header) → create button (click) →
     edit link (click) → delete button (click + cancel) →
-    console + network check
-    = 9 interacções = funcional. "Navigate + title" = smoke, NÃO funcional.
+    console + network check + edge case (search com caracteres especiais) +
+    menu active state check + visual alignment check
+    = funcional. "Navigate + title" = smoke, NÃO funcional.
 
   Session expiry → re-login automatico. Multi-role → logout/login per role.
 
@@ -191,6 +213,9 @@ PASSO 4: REPORTAR
   - Bugs novos → SendMessage ao DA (FINDING-FILTER), Standard Finding Format
   - Páginas órfãs → SendMessage ao DA (FINDING-FILTER)
   - Design System inconsistências → SendMessage ao DA (FINDING-FILTER)
+  - Visual/UI problemas → SendMessage ao DA (FINDING-FILTER)
+  - Edge case failures → SendMessage ao DA (FINDING-FILTER)
+  - i18n / acentos / brasileirismos → SendMessage ao DA (FINDING-FILTER)
 
 PASSO 5: FINALIZAR
   - Reportar: "Páginas alcançáveis via UI: {N}. Rotas registadas: {M}. Órfãs: {O}."
@@ -211,3 +236,6 @@ PASSO 5: FINALIZAR
 - NAO fazer apenas navigate + title check em modo funcional (isso é smoke, NÃO funcional)
 - NAO navegar directamente por URL em modo funcional/completo (excepto login + tickets em "testing" + retorno após CRUD)
 - NAO saltar take_snapshot() — é o PRIMEIRO passo obrigatório após CADA navegação em modo funcional
+- NAO usar a primeira página como baseline de design system sem ANTES procurar design system documentado no projecto
+- NAO testar apenas o "happy path" — pensamento crítico e edge cases são OBRIGATÓRIOS em modo funcional/completo
+- NAO ignorar problemas visuais (alinhamento, cores, menu active state, overflow) — verificar em CADA página

@@ -4,7 +4,7 @@ description: Triage ClickUp code review tickets, validate findings against codeb
 user_invocable: true
 ---
 
-# ClickUp Code Review — Planning Skill (v5.2.3)
+# ClickUp Code Review — Planning Skill (v5.2.4)
 
 Triage + validate tickets. Decentralised: each specialist plans their area. Triangle: Specialist + DA + Investigation. Investigation meta-organises waves + dependencies.
 **API Patterns:** See `references/clickup-api-patterns.md` for all ClickUp API patterns.
@@ -31,12 +31,12 @@ Triage + validate tickets. Decentralised: each specialist plans their area. Tria
 15. NUNCA fechar tickets sem validação de specialist + DA.
 16. NUNCA gerar bash multi-linha ou com `&&`/`||`/`;`. Cada Bash call = 1 statement.
     Para listar ficheiros: **Glob TOOL**. Para ler: **Read TOOL**.
-16. NUNCA fazer trabalho de specialist (source code). DELEGAR.
-17. NUNCA shutdown_request sem DA + CU Manager confirmarem sem pendentes.
+17. NUNCA fazer trabalho de specialist (source code). DELEGAR.
+18. NUNCA shutdown_request sem DA + CU Manager confirmarem sem pendentes.
 
 ---
 
-## Shutdown Rules (v5.2.3)
+## Shutdown Rules (v5.2.4)
 
 Maestro PODE fechar specialists no FINAL de cada phase. DA + CU Manager persistem toda a sessão.
 

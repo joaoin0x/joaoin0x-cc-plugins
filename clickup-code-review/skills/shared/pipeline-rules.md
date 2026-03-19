@@ -1,4 +1,4 @@
-# Pipeline Rules (Shared — v5.2.3)
+# Pipeline Rules (Shared — v5.2.4)
 
 Regras transversais a todos os agentes do pipeline de code review. Lido no arranque por TODOS os agents.
 
@@ -33,7 +33,9 @@ Regras transversais a todos os agentes do pipeline de code review. Lido no arran
 - **PLANNING:** plano → DA (PLANNING-REVIEW) + Investigation, em paralelo
 - **FIX:** diff → DA (CODE-REVIEW) directamente. Report final → Maestro
 - **TESTING:** evidência por ticket → DA (QA-REVIEW), 1 SendMessage por ticket (streaming, não batch).
-  DA verdict → Maestro. Maestro → CU Manager (status change). DA NUNCA fala com CU Manager directamente.
+  DA verdict → Maestro. Maestro → CU Manager (status change OU create ticket) IMEDIATAMENTE.
+  NUNCA acumular verdicts — cada DA APPROVED/REJECTED gera SendMessage ao CU Manager em tempo real.
+  DA NUNCA fala com CU Manager directamente.
 - **Cross-area:** sugestoes a outros specialists sao ENCORAJADAS via SendMessage
 - NUNCA comunicar directamente com o utilizador
 - NUNCA comunicar com o ClickUp Manager (tudo via Maestro)

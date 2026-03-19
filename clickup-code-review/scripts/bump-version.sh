@@ -156,7 +156,7 @@ if [ "$NEW_VERSION" = "$CURRENT_VERSION" ]; then
 fi
 
 # --- Version pattern ---
-# Matches: (v5.2.1), — v5.2.0, (v5.1.1), "5.2.1" in .json, Plugin-Version: 5.2.3 in .sh
+# Matches: (v5.2.1), — v5.2.0, (v5.1.1), "5.2.1" in .json, Plugin-Version: 5.2.4 in .sh
 VERSION_REGEX='v[0-9]+\.[0-9]+\.[0-9]+'
 SH_VERSION_REGEX='Plugin-Version: [0-9]+\.[0-9]+\.[0-9]+'
 

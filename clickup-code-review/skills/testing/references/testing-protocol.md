@@ -1,4 +1,4 @@
-# Testing Protocol Reference (v5.2.3)
+# Testing Protocol Reference (v5.2.4)
 
 Technical reference for the testing skill. The Maestro, QA Specialist, DA, and ClickUp Manager use this document for Chrome DevTools MCP methodology, login handling, screenshot rules, and QA verdict routing.
 
@@ -46,7 +46,7 @@ Technical reference for the testing skill. The Maestro, QA Specialist, DA, and C
 
 ---
 
-## Snapshot-First Methodology (OBRIGATÓRIO — v5.2.3)
+## Snapshot-First Methodology (OBRIGATÓRIO — v5.2.4)
 
 ### Princípio
 
@@ -156,11 +156,16 @@ Se o QA só faz navigate + title em modo funcional → profundidade INSUFICIENTE
 
 ---
 
-## Human-First Navigation (OBRIGATÓRIO — v5.2.3)
+## Human-First Usage & Critical Testing (OBRIGATÓRIO — v5.2.4)
 
 ### Princípio
 
-O QA navega como um utilizador real: começa no dashboard, clica nos menus/sidebar, descobre páginas via links. NUNCA navega directamente por URL excepto para:
+O QA NÃO se limita a navegar — **UTILIZA** a plataforma como um cliente real faria.
+Adopta a postura de um humano com conhecimentos de QA/dev: procura activamente formas de
+"partir" a aplicação, pensa em cenários que o developer pode não ter considerado, e testa
+o impacto cross-module das acções.
+
+NUNCA navega directamente por URL excepto para:
 - Login page (ponto de partida)
 - URLs específicas de tickets em "testing" (validação pós-fix)
 - Retorno após CRUD (após create, navegar de volta ao index por URL é aceitável)
@@ -193,6 +198,40 @@ FASE 2: CROSS-CHECK COM ROTAS
 FASE 3: TESTE DAS PÁGINAS (ordem humana)
   Testar páginas pela ordem de descoberta na UI (não por lista de rotas).
   Para páginas órfãs: reportar como finding, testar de qualquer forma via URL.
+
+FASE 4: PENSAMENTO CRÍTICO & STRESS TEST (v5.2.4)
+  O QA pensa como utilizador real COM conhecimentos de dev/QA:
+
+  4.1 EDGE CASES CRIATIVOS
+      - Para CADA funcionalidade CRUD, perguntar: "O que acontece se...?"
+      - Datas: sobreposições, datas passadas, feriados, fins-de-semana
+      - Valores: zero, negativos, máximos, caracteres especiais, unicode
+      - Permissões: acções no limite do role (quase-admin mas não admin)
+      - Estado: submeter form 2x seguidas, back button após submit
+      - Concorrência: abrir mesma entidade em 2 tabs, editar em ambas
+      - Campos opcionais: submeter só com obrigatórios, submeter com TODOS
+
+  4.2 IMPACTO CROSS-MODULE
+      - Quando uma acção no módulo A pode afectar o módulo B, VERIFICAR:
+        Ex: criar férias → afecta horários? afecta registo de ponto?
+        Ex: desactivar utilizador → sessões activas terminam? tarefas atribuídas?
+        Ex: alterar role → permissões actualizam imediatamente?
+      - Ler CLAUDE.md e código para entender relações entre módulos
+      - Após acção num módulo: navegar aos módulos relacionados e verificar estado
+
+  4.3 STRESS TEST FUNCIONAL
+      - Pesquisa: termos muito longos, caracteres especiais, SQL-like strings
+      - Paginação: primeira página, última, saltar para meio
+      - Filtros: combinar múltiplos filtros, filtrar + pesquisar + paginar
+      - Forms: campos com espaços extra, HTML tags em text inputs
+      - Upload: ficheiros vazios, nomes com espaços/acentos (se aplicável)
+
+  4.4 FLUXOS REALISTAS (pensar como cliente)
+      - Não testar apenas o "happy path" — testar o caminho que um utilizador
+        REAL seguiria, incluindo erros, hesitações, e mudanças de ideia
+      - Ex: começar a preencher form → cancelar → voltar → dados persistem?
+      - Ex: criar registo → perceber erro → editar imediatamente → correcto?
+      - Ex: navegar rapidamente entre páginas → alguma quebra? loading states?
 ```
 
 ### Excepções (navegação directa por URL permitida)
@@ -224,54 +263,154 @@ Opção B: Remover rota se a funcionalidade não é necessária.
 
 ---
 
-## Design System Consistency Check (Level 2 — v5.2.3)
+## Design System — Source of Truth (Level 2 — v5.2.4)
 
 ### Princípio
 
-Durante `take_snapshot()`, verificar que os elementos seguem padrões consistentes.
-Não é necessário conhecer o design system — detectar DESVIOS entre páginas.
+O design system do projecto é a source of truth para consistência visual.
+A primeira página pode estar ERRADA — usar o design system documentado, não inferir de páginas.
 
-### O que verificar (por página, durante snapshot analysis)
+### Procedimento: Descoberta do Design System
 
 ```
-BUTTONS:
-  - Todas as páginas usam as mesmas classes para botões primários?
-  - Ex: se dashboard usa `btn btn-primary`, mas users usa `btn btn-success` para acção similar → inconsistência
-  - Acção primária (Create/Save) deve ter estilo consistente em todas as páginas
+FASE 1: PROCURAR DESIGN SYSTEM NO PROJECTO (ANTES de testar páginas)
 
-TABLES:
-  - Todas as tabelas usam o mesmo componente/classes?
-  - Ex: se users tem `table table-striped` mas shifts tem `table` simples → inconsistência
+  1.1 CLAUDE.md / AGENTS.md / docs/
+      - Ler CLAUDE.md do projecto → procurar referências a design system, componentes, padrões CSS
+      - Glob: docs/design-system*, docs/ui-*, docs/style*
+      - Se encontrado: extrair padrões (classes CSS, componentes, cores, tipografia)
+
+  1.2 Componentes Blade/Vue (código-fonte)
+      - Glob: resources/views/components/**/*.blade.php, resources/js/components/**/*.vue
+      - Identificar componentes reutilizáveis (botões, tabelas, cards, forms)
+      - Extrair classes CSS padrão de cada componente
+
+  1.3 Ficheiros CSS/Tailwind
+      - Glob: resources/css/*.css, tailwind.config.*, resources/sass/*.scss
+      - Procurar variáveis de cor, spacing, tipografia definidas
+
+  1.4 Página de Design System na APP (se existir)
+      - APÓS login (com conta super/admin): procurar no menu por links tipo:
+        "Desenvolvimento", "Design System", "Style Guide", "UI Kit", "Componentes"
+      - Se encontrado: navegar → take_snapshot() → extrair TODOS os padrões visuais
+      - Esta página é a referência MÁXIMA — sobrepõe qualquer inferência
+
+  1.5 Storybook / Pattern Library
+      - Verificar package.json por dependência de Storybook
+      - Se existir: anotar (pode não estar a correr, mas indica que há design system)
+
+FASE 2: PERSISTIR BASELINE (sobrevive a compactação de contexto)
+
+  Ficheiro: .claude/design-system-baseline.local.md
+  (este ficheiro é .local — NUNCA vai para git)
+
+  Conteúdo:
+  ```markdown
+  # Design System Baseline — {projecto} — {date}
+  ## Fonte: {onde foi encontrado: "Página Design System /manager/dev/ui-kit" | "Componentes Blade" | "Inferido das páginas"}
+
+  ### Botões
+  - Primário: `{classes}` (ex: `btn btn-primary`)
+  - Secundário: `{classes}`
+  - Danger: `{classes}`
+  - Placement: {onde ficam os botões de acção — direita? centro?}
+
+  ### Tabelas
+  - Classes: `{classes}` (ex: `table table-striped table-hover`)
+  - Headers: {estilo}
+  - Row hover: {sim/não, classe}
+  - Empty state: {como mostra "sem dados"}
+
+  ### Forms
+  - Input classes: `{classes}`
+  - Label style: {posição, tamanho}
+  - Required indicator: {* | texto | classe}
+  - Error message style: `{classes}`
+  - Submit button placement: {direita | esquerda | centro}
+
+  ### Cards/Containers
+  - Card classes: `{classes}`
+  - Spacing/padding: {padrão}
+
+  ### Cores
+  - Primária: {cor/classe}
+  - Secundária: {cor/classe}
+  - Success/Warning/Danger: {cores}
+  - Background: {cor}
+  - Texto: {cor}
+
+  ### Tipografia
+  - Headings: {classes/tamanhos}
+  - Body: {tamanho/fonte}
+
+  ### Menu/Navegação
+  - Active state: {como indica página activa — classe, background, border}
+  - Hover state: {comportamento ao hover}
+  - Expansão: {colapsa ao navegar? mantém estado?}
+
+  ### Layout
+  - Page structure: {sidebar + content? full-width?}
+  - Responsive breakpoints: {se identificáveis}
+  ```
+
+FASE 3: FALLBACK (sem design system documentado)
+
+  Se NENHUMA das fontes acima produzir resultado:
+  - Usar as PRIMEIRAS 3 páginas funcionais para inferir padrões
+  - Registar como "Fonte: Inferido das páginas (sem design system documentado)"
+  - Marcar confiança como LOWER (70% em vez de 90%) nos findings
+  - Incluir finding ao DA: "Projecto sem design system documentado — padrões inferidos"
+```
+
+### Verificação por Página (após baseline estabelecida)
+
+```
+EM CADA página testada, comparar com .claude/design-system-baseline.local.md:
+
+BOTÕES:
+  - Classes correspondem ao baseline?
+  - Acção primária (Create/Save) usa estilo correcto?
+  - Placement consistente?
+
+TABELAS:
+  - Mesmo componente/classes do baseline?
   - Headers, row styling, hover effects consistentes?
 
-CARDS/CONTAINERS:
-  - Layout containers consistentes entre páginas?
-  - Spacing/padding visual similar?
-
 FORMS:
-  - Labels, input styling, error messages consistentes?
-  - Required field indicators (`*`) consistentes?
-  - Submit button placement e estilo consistentes?
+  - Labels, inputs, error messages seguem baseline?
+  - Required indicators consistentes?
+  - Submit button placement correcto?
 
-NAVIGATION:
-  - Sidebar/header estilo consistente em todas as páginas?
-  - Active state visível no menu?
-```
+CARDS/CONTAINERS:
+  - Layout containers consistentes?
+  - Spacing/padding segue baseline?
 
-### Procedimento
+CORES:
+  - Cores usadas correspondem ao baseline?
+  - Contraste legível? (texto sobre fundo)
+  - Sem cores "soltas" que não pertencem à paleta
 
-```
-1. Na PRIMEIRA página funcional testada: registar padrões base
-   - Button classes para acções primárias/secundárias/danger
-   - Table classes e estrutura
-   - Form input styling
-   - Card/container classes
-   Guardar em {REVIEW_DIR}/qa/design-patterns-baseline.md
+TIPOGRAFIA:
+  - Headings e body text seguem baseline?
+  - Sem tamanhos/fontes fora do padrão
 
-2. Em CADA página subsequente: comparar com baseline
-   - Se diferente: registar desvio
-   - Após todas as páginas: se >30% das páginas desviam → finding ao DA
-   - Se apenas 1-2 páginas desviam → finding individual por página
+MENU/NAVEGAÇÃO:
+  - Página actual assinalada no menu? (active state visível)
+  - Menu mantém estado de expansão ao navegar entre páginas?
+  - Menu não colapsa desnecessariamente ao mudar de página?
+  - Hover state consistente?
+
+LAYOUT/RESPONSIVE:
+  - Elementos alinhados correctamente?
+  - Legibilidade prejudicada por algum elemento responsive?
+  - Layout confuso, pouco intuitivo, ou mal organizado?
+  - Sobreposição de elementos?
+
+Se desvio encontrado:
+  - Se baseline vem de Design System documentado → confiança 90%+
+  - Se baseline inferido das páginas → confiança 70%
+  - 1-2 páginas desviam → finding individual por página
+  - >30% páginas desviam → finding sistémico ao DA
 ```
 
 ### Formato Finding (Design System)
@@ -279,19 +418,102 @@ NAVIGATION:
 ```markdown
 ### {SHORTNAME} - Inconsistência de design system: {elemento}
 - **Severidade:** Low
-- **Confiança:** {90}%
+- **Confiança:** {70-95}% (95% se design system documentado, 70% se inferido)
 - **Ficheiro:** `{view_file.blade.php}` (se identificável)
 - **Rota:** `GET {url}`
 
 #### Problema
-Página {url} usa {pattern_found} para {elemento}, mas o padrão do projecto é {baseline_pattern}.
-{N} de {total} páginas seguem o padrão base; esta página desvia.
+Página {url} usa {pattern_found} para {elemento}, mas o design system define {baseline_pattern}.
+Fonte do baseline: {Design System page /url | Componentes Blade | Inferido das páginas}.
+{N} de {total} páginas seguem o padrão; esta página desvia.
 
 #### Impacto
 Inconsistência visual para o utilizador. Degrada a percepção de qualidade da aplicação.
 
 #### Correcção Sugerida
-Alinhar {elemento} com o padrão do projecto ({baseline_pattern}).
+Alinhar {elemento} com o design system ({baseline_pattern}).
+```
+
+---
+
+## Visual/UI Quality Verification (Level 2 — v5.2.4)
+
+### Princípio
+
+O snapshot (accessibility tree) e o screenshot são ferramentas complementares para
+verificar a qualidade visual da interface. O QA verifica não apenas se os elementos
+funcionam, mas se a interface é visualmente correcta, legível, e intuitiva.
+
+### O que verificar (por página, via snapshot + evaluate_script)
+
+```
+ALINHAMENTO:
+  - Elementos na mesma linha estão alinhados? (botões, labels, inputs)
+  - Tabelas: colunas alinhadas, headers centrados/alinhados
+  - Cards/widgets no dashboard: mesma altura? alinhamento horizontal?
+  - Acções de row (edit/delete): alinhadas entre rows?
+
+RESPONSIVE/LEGIBILIDADE:
+  - Texto cortado ou overflow? (evaluate_script para detectar overflow)
+  - Elementos sobrepostos?
+  - Tabelas: colunas comprimidas ao ponto de ilegibilidade?
+  - Botões: texto truncado?
+  - Se viewport não é mobile: verificar que layout desktop está correcto
+
+LAYOUT & INTUITIVIDADE:
+  - Hierarquia visual clara? (headings, secções, agrupamentos)
+  - Acções primárias visíveis e destacadas?
+  - Acções perigosas (delete) diferenciadas visualmente?
+  - Formulários: campos agrupados logicamente?
+  - Informação excessiva sem organização? (wall of text/data)
+  - Espaçamento adequado entre secções?
+
+CORES:
+  - Cores consistentes com design system baseline?
+  - Contraste suficiente para legibilidade?
+  - Cores semânticas correctas? (success=verde, danger=vermelho, warning=amarelo)
+  - Sem cores "soltas" que destoam da paleta do projecto
+
+MENU/NAVEGAÇÃO (verificar em CADA página):
+  - Página actual assinalada no menu? (active state: background, border, font-weight)
+  - Secção do menu expandida correctamente?
+  - Ao navegar para sub-página: menu pai mantém-se expandido?
+  - Ao navegar entre páginas do mesmo módulo: menu não colapsa desnecessariamente?
+  - Breadcrumbs correctos e clicáveis?
+  - Active state MUDA ao navegar (não fica "preso" na página anterior)?
+```
+
+### Detecção via evaluate_script (exemplos)
+
+```javascript
+// Detectar overflow de texto
+document.querySelectorAll('*').forEach(el => {
+  if (el.scrollWidth > el.clientWidth) console.log('OVERFLOW:', el.tagName, el.textContent?.substring(0,30));
+});
+
+// Verificar active state no menu
+document.querySelector('.sidebar .active, .nav-link.active, .menu-item.active')?.textContent;
+
+// Verificar se menu item corresponde à página actual
+document.querySelector('.sidebar .active a')?.href;
+```
+
+### Formato Finding (Visual/UI)
+
+```markdown
+### {SHORTNAME} - Problema visual: {descrição curta}
+- **Severidade:** Low / Medium (Medium se afecta usabilidade)
+- **Confiança:** {85}%
+- **Rota:** `GET {url}`
+
+#### Problema
+{Descrição do problema visual: alinhamento, overflow, cor incorrecta, menu sem active state, etc.}
+
+#### Impacto
+{Impacto na experiência do utilizador: confusão, dificuldade de navegação, percepção de baixa qualidade.}
+
+#### Correcção Sugerida
+{Sugestão concreta: adicionar classe, corrigir alinhamento, ajustar cor.}
 ```
 
 ---
@@ -825,7 +1047,7 @@ STEP 5: HANDLE PARAMETERIZED ROUTES
 **Example:**
 ```
 # WRONG
-Login: testes@farmaciaslourenco.pt / testes@farmaciaslourenco.pt
+Login: admin@real-client.com / S3cretPassw0rd!
 
 # CORRECT
 Login: {TEST_EMAIL} / {TEST_PASSWORD} (from credentials.local.md)
@@ -833,7 +1055,7 @@ Login: {TEST_EMAIL} / {TEST_PASSWORD} (from credentials.local.md)
 
 ---
 
-## Verificação por Tipo de Ticket (v5.2.3)
+## Verificação por Tipo de Ticket (v5.2.4)
 
 ### Verificação COMPLETA via browser (QA testa tudo funcionalmente)
 

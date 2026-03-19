@@ -167,6 +167,8 @@ Report to Maestro: all task_ids + paths + "Tree created, ready"
 3. CREDENTIAL SCAN on content — if detected → REJECT
 4. DEDUP CHECK: existing .md files for same title or file:line
 5. POST /list/{list_id}/task (name: "{shortname} - {title}", parent, priority)
+   CAMPOS PERMITIDOS: name, parent, priority — NADA MAIS.
+   NUNCA incluir: tags, assignees, custom_fields, due_date, start_date.
 6. CREATE LOCAL .md: YAML frontmatter + body + secção final OBRIGATÓRIA:
    #### Nome do Issue
    ```
@@ -355,6 +357,10 @@ If detected → REJECT, report to Maestro.
 - Do NOT make orchestration decisions
 - Do NOT communicate with specialists, DA, or user directly
 - Do NOT create tickets WITHOUT Maestro instruction
+- **NUNCA usar tags nativas do ClickUp** (nem no POST nem no PUT)
+  Tags criam overhead de gestão e inconsistência. Informação de categorização
+  (área, severidade, tipo) vai na descrição markdown do ticket, não em tags.
+  Se quiser categorizar: incluir na descrição markdown, nunca como tag nativa.
 - Do NOT change status WITHOUT evidence verification
 - **NUNCA usar campo `description` em PUT — SEMPRE `markdown_description`**
   (o campo `description` é plaintext e destrói toda a formatação markdown)
