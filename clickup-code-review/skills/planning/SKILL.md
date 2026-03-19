@@ -4,7 +4,7 @@ description: Triage ClickUp code review tickets, validate findings against codeb
 user_invocable: true
 ---
 
-# ClickUp Code Review — Planning Skill (v5.2.7)
+# ClickUp Code Review — Planning Skill (v5.2.8)
 
 Triage + validate tickets. Decentralised: each specialist plans their area. Triangle: Specialist + DA + Investigation. Investigation meta-organises waves + dependencies.
 **API Patterns:** See `references/clickup-api-patterns.md` for all ClickUp API patterns.
@@ -36,7 +36,7 @@ Triage + validate tickets. Decentralised: each specialist plans their area. Tria
 
 ---
 
-## Shutdown Rules (v5.2.7)
+## Shutdown Rules (v5.2.8)
 
 Maestro PODE fechar specialists no FINAL de cada phase. DA + CU Manager persistem toda a sessão.
 

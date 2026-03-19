@@ -1,4 +1,4 @@
-# Pipeline Rules (Shared — v5.2.7)
+# Pipeline Rules (Shared — v5.2.8)
 
 Regras transversais a todos os agentes do pipeline de code review. Lido no arranque por TODOS os agents.
 

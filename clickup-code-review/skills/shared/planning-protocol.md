@@ -1,4 +1,4 @@
-# Planning Protocol (Shared — v5.2.7)
+# Planning Protocol (Shared — v5.2.8)
 
 Esqueleto do protocolo PLANNING. Lido pelos specialists no arranque do mode PLANNING.
 
