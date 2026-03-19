@@ -4,7 +4,7 @@ description: Triage ClickUp code review tickets, validate findings against codeb
 user_invocable: true
 ---
 
-# ClickUp Code Review — Planning Skill (v5.2.6)
+# ClickUp Code Review — Planning Skill (v5.2.7)
 
 Triage + validate tickets. Decentralised: each specialist plans their area. Triangle: Specialist + DA + Investigation. Investigation meta-organises waves + dependencies.
 **API Patterns:** See `references/clickup-api-patterns.md` for all ClickUp API patterns.
@@ -36,7 +36,7 @@ Triage + validate tickets. Decentralised: each specialist plans their area. Tria
 
 ---
 
-## Shutdown Rules (v5.2.6)
+## Shutdown Rules (v5.2.7)
 
 Maestro PODE fechar specialists no FINAL de cada phase. DA + CU Manager persistem toda a sessão.
 
@@ -85,7 +85,7 @@ Incluir em CADA spawn: `"Plugin root: {PLUGIN_ROOT} — lê o teu agent .md comp
 
 ## Phase 0: Configuration Check
 
-0. **Hook guard activation:** `touch code-reviews/.clickup-review-active` (enables plugin hooks for this session)
+0. **Hook guard activation:** `mkdir -p code-reviews` seguido de `touch code-reviews/.clickup-review-active` (2 Bash calls separadas) (enables plugin hooks for this session)
 
 ```bash
 if ! grep -q 'code-reviews/' .gitignore 2>/dev/null; then

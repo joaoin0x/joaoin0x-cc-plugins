@@ -133,7 +133,7 @@ REGRA: Screenshots = ferramenta de trabalho — APAGAR antes de terminar.
 
 ---
 
-## MODE: TESTING (standalone — /clickup-code-review:testing) — v5.2.6
+## MODE: TESTING (standalone — /clickup-code-review:testing) — v5.2.7
 
 Teste funcional completo via Chrome DevTools MCP.
 **Snapshot-First + Human Usage + Design System SOT + Critical Thinking + Visual/UI.**

@@ -212,7 +212,7 @@ STEP 4: EMIT VERDICT
 - **Missing:** {what failed} | **Required:** {actions}
 ```
 
-### Security/Performance Tickets: Combined QA-REVIEW + CODE-REVIEW (v5.2.6)
+### Security/Performance Tickets: Combined QA-REVIEW + CODE-REVIEW (v5.2.7)
 
 For tickets with area **Security** or **Backend/Performance**:
 

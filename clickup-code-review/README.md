@@ -1,4 +1,4 @@
-# ClickUp Code Review Plugin (v5.2.6)
+# ClickUp Code Review Plugin (v5.2.7)
 
 Multi-agent code review lifecycle for Claude Code: audit, planning, fixing, and functional testing, with ClickUp integration, evidence-based status gates, and a self-contained HTML dashboard.
 
@@ -95,7 +95,7 @@ Every status transition requires proof. The ClickUp Manager REFUSES transitions 
 
 New status between "in progress" and "testing" that provides board visibility for which tickets are being implemented vs awaiting DA review.
 
-### Read-Ahead Queue (v5.2.6)
+### Read-Ahead Queue (v5.2.7)
 
 PREPARE paralelo (max 3, read-only, persiste `.prepare.md`) → IMPLEMENT serial (write/stage). Staleness check, deadlock detection, fallback to serial. Wave grouping mantém-se para ordenação/dependências.
 
@@ -228,7 +228,7 @@ clickup-code-review/
 │   ├── devils-advocate.md           # opus — sceptical gatekeeper (4 modes)
 │   └── code-simplifier.md           # sonnet — anti-complexity
 ├── hooks/
-│   ├── hooks.json                   # Plugin-bundled PreToolUse matchers (v5.2.6)
+│   ├── hooks.json                   # Plugin-bundled PreToolUse matchers (v5.2.7)
 │   ├── orchestration-auto-approve.sh  # Agent/SendMessage auto-approve
 │   ├── file-ops-auto-approve.sh     # Write/Edit/Read auto-approve (deny .env/.sh; whitelist safe exts)
 │   ├── bash-safe-auto-approve.sh    # Bash auto-approve: git read-only, staging, commits, test runners
@@ -236,7 +236,7 @@ clickup-code-review/
 ├── references/
 │   └── clickup-api-patterns.md      # Shared API patterns (all skills)
 ├── skills/
-│   ├── shared/                      # Shared protocols (v5.2.6 — referenced by all agents)
+│   ├── shared/                      # Shared protocols (v5.2.7 — referenced by all agents)
 │   │   ├── pipeline-rules.md        # Communication, streaming, progress, credentials, forbidden
 │   │   ├── planning-protocol.md     # PASSO skeleton, triangle validation, planeamento template
 │   │   └── fix-protocol.md          # PASSO skeleton, specialist↔DA flow, evidence gates

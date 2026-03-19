@@ -4,7 +4,7 @@ description: Use when performing comprehensive codebase audits with ClickUp tick
 user_invocable: true
 ---
 
-# ClickUp Code Review — Audit Skill (v5.2.6)
+# ClickUp Code Review — Audit Skill (v5.2.7)
 
 Multi-agent audit: specialists → DA filters → CU Manager creates tickets. No fixes applied.
 **API Patterns:** See `references/clickup-api-patterns.md` for all ClickUp API patterns.
@@ -35,7 +35,7 @@ Multi-agent audit: specialists → DA filters → CU Manager creates tickets. No
 
 ---
 
-## Shutdown Rules (v5.2.6)
+## Shutdown Rules (v5.2.7)
 
 Maestro PODE fechar specialists no FINAL de cada phase. DA + CU Manager persistem toda a sessão.
 
@@ -63,7 +63,7 @@ FORBIDDEN: NUNCA fechar DA ou CU Manager. NUNCA fechar specialists a MEIO de uma
 
 ## Phase 0: Configuration Check
 
-0. **Hook guard activation:** `touch code-reviews/.clickup-review-active` (enables plugin hooks for this session)
+0. **Hook guard activation:** `mkdir -p code-reviews` seguido de `touch code-reviews/.clickup-review-active` (2 Bash calls separadas) (enables plugin hooks for this session)
 
 ```bash
 if ! grep -q 'code-reviews/' .gitignore 2>/dev/null; then
@@ -185,7 +185,7 @@ Summary é REPORT do ClickUp, não recollection.
 
 ---
 
-## Maestro Checklist (v5.2.6)
+## Maestro Checklist (v5.2.7)
 
 - [ ] Gitignore: `code-reviews/` presente
 - [ ] CU Manager spawned, config validada, RECONCILE CACHE executado
