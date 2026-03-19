@@ -4,7 +4,7 @@ description: Implement fixes for validated ClickUp code review tickets. Handles 
 user_invocable: true
 ---
 
-# ClickUp Code Review — Fix Skill (v5.2.4)
+# ClickUp Code Review — Fix Skill (v5.2.5)
 
 Execute planned fixes for validated tickets. Read-Ahead Queue — PREPARE paralelo (max 3) + IMPLEMENT serial. DA CODE-REVIEW + evidence gate + commit per ticket.
 
@@ -34,7 +34,7 @@ Execute planned fixes for validated tickets. Read-Ahead Queue — PREPARE parale
 
 ---
 
-## Shutdown Rules (v5.2.4)
+## Shutdown Rules (v5.2.5)
 
 ### Quando fechar agentes
 Maestro PODE fechar specialists no FINAL de cada wave. DA e CU Manager persistem toda a sessão.
@@ -69,7 +69,7 @@ TODOS os agentes spawned com `team_name` e `name` para comunicação via SendMes
 
 ---
 
-## Read-Ahead Queue (v5.2.4)
+## Read-Ahead Queue (v5.2.5)
 
 **PREPARE paralelo (read-only, max 3) → persist .prepare.md → IMPLEMENT serial (write/stage).**
 
@@ -149,7 +149,7 @@ Restantes mantêm Read-Ahead.
 
 ## Phase 0: Configuration Check
 
-0. **Hook guard activation:** `touch ~/.clickup-review-active` (enables plugin hooks for this session)
+0. **Hook guard activation:** `touch .claude/code-reviews/.clickup-review-active` (enables plugin hooks for this session)
 1. Gitignore: verify `.claude/code-reviews/` in `.gitignore`
 2. CU Manager: config check (token, list ID, shortname, status mapping)
 3. CU Manager: RECONCILE CACHE (1x per session)
@@ -233,4 +233,4 @@ After ALL tickets in wave:
 - [ ] All tickets at correct status ("testing" or skipped)
 - [ ] Summary presented to user
 - [ ] User informed: NEVER auto-push
-- [ ] Hook guard deactivated: `rm -f ~/.clickup-review-active`
+- [ ] Hook guard deactivated: `rm -f .claude/code-reviews/.clickup-review-active`

@@ -4,7 +4,7 @@ description: Functional browser testing via Chrome DevTools MCP with ClickUp tic
 user_invocable: true
 ---
 
-# ClickUp Code Review — Testing Skill (v5.2.4)
+# ClickUp Code Review — Testing Skill (v5.2.5)
 
 Functional browser testing via Chrome DevTools MCP. Validates post-fix tickets, discovers new bugs, manages QA lifecycle with DA QA-REVIEW.
 
@@ -37,7 +37,7 @@ Functional browser testing via Chrome DevTools MCP. Validates post-fix tickets, 
 
 ---
 
-## Shutdown Rules (v5.2.4)
+## Shutdown Rules (v5.2.5)
 
 ### Regra Absoluta
 NUNCA enviar shutdown_request a QUALQUER agente sem ordem EXPLÍCITA do user.

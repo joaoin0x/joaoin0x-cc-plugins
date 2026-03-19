@@ -18,7 +18,7 @@
 # Suppress stderr — prevents hook runner from interpreting errors as hook failures
 exec 2>/dev/null
 
-GUARD="$HOME/.clickup-review-active"
+GUARD="$CLAUDE_PROJECT_DIR/.claude/code-reviews/.clickup-review-active"
 if [ -f "$GUARD" ]; then
     age=$(($(date +%s) - $(stat -f '%m' "$GUARD")))
     if [ "$age" -gt 14400 ]; then

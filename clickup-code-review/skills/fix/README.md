@@ -20,7 +20,7 @@ Execute planned fixes for validated tickets. Manage branches, coordinate special
 4. **Phase 1-N** — Wave execution (Read-Ahead Queue: PREPARE paralelo + IMPLEMENT serial)
 5. **Phase Final** — Summary with commit log
 
-### Read-Ahead Queue (v5.2.4)
+### Read-Ahead Queue (v5.2.5)
 
 **Phase A — PREPARE (paralelo, max 3 simultaneous):**
 ```

@@ -25,7 +25,7 @@ exec 2>/dev/null
 
 # === GUARD CHECK (only active during plugin skill sessions) ===
 # Guard marker managed by a separate global hook (guard-marker-auto-approve.sh)
-GUARD="$HOME/.clickup-review-active"
+GUARD="$CLAUDE_PROJECT_DIR/.claude/code-reviews/.clickup-review-active"
 if [ -f "$GUARD" ]; then
     age=$(($(date +%s) - $(stat -f '%m' "$GUARD")))
     if [ "$age" -gt 14400 ]; then
