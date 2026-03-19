@@ -7,20 +7,20 @@
 # Runs globally — always active, regardless of skill session state.
 #
 # Only approves:
-#   touch $CLAUDE_PROJECT_DIR/.claude/code-reviews/.clickup-review-active
-#   rm -f $CLAUDE_PROJECT_DIR/.claude/code-reviews/.clickup-review-active
+#   touch $CLAUDE_PROJECT_DIR/code-reviews/.clickup-review-active
+#   rm -f $CLAUDE_PROJECT_DIR/code-reviews/.clickup-review-active
 
 exec 2>/dev/null
 
 input=$(cat)
 command=$(echo "$input" | jq -r '.tool_input.command // ""' 2>/dev/null)
 
-if echo "$command" | grep -qE '^touch [^ ]*\.claude/code-reviews/\.clickup-review-active$'; then
+if echo "$command" | grep -qE '^touch [^ ]*\code-reviews/\.clickup-review-active$'; then
     echo '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow"}}'
     exit 0
 fi
 
-if echo "$command" | grep -qE '^rm -f [^ ]*\.claude/code-reviews/\.clickup-review-active$'; then
+if echo "$command" | grep -qE '^rm -f [^ ]*\code-reviews/\.clickup-review-active$'; then
     echo '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow"}}'
     exit 0
 fi

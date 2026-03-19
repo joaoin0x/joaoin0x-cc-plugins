@@ -4,7 +4,7 @@ description: Triage ClickUp code review tickets, validate findings against codeb
 user_invocable: true
 ---
 
-# ClickUp Code Review — Planning Skill (v5.2.5)
+# ClickUp Code Review — Planning Skill (v5.2.6)
 
 Triage + validate tickets. Decentralised: each specialist plans their area. Triangle: Specialist + DA + Investigation. Investigation meta-organises waves + dependencies.
 **API Patterns:** See `references/clickup-api-patterns.md` for all ClickUp API patterns.
@@ -15,7 +15,7 @@ Triage + validate tickets. Decentralised: each specialist plans their area. Tria
 
 1. NUNCA investigar directamente. Maestro é orquestrador, não analista.
 2. NUNCA receber finding content de specialists.
-3. NUNCA usar `/tmp/`. Tudo em `.claude/code-reviews/` (project-scoped).
+3. NUNCA usar `/tmp/`. Tudo em `code-reviews/` (project-scoped).
 4. NUNCA usar `grep -P`. Usar `grep -E`.
 5. NUNCA enviar shutdown_request sem ordem explícita do user.
 6. NUNCA re-spawnar sem verificar se agente está vivo (SendMessage "Status?").
@@ -36,7 +36,7 @@ Triage + validate tickets. Decentralised: each specialist plans their area. Tria
 
 ---
 
-## Shutdown Rules (v5.2.5)
+## Shutdown Rules (v5.2.6)
 
 Maestro PODE fechar specialists no FINAL de cada phase. DA + CU Manager persistem toda a sessão.
 
@@ -85,16 +85,16 @@ Incluir em CADA spawn: `"Plugin root: {PLUGIN_ROOT} — lê o teu agent .md comp
 
 ## Phase 0: Configuration Check
 
-0. **Hook guard activation:** `touch .claude/code-reviews/.clickup-review-active` (enables plugin hooks for this session)
+0. **Hook guard activation:** `touch code-reviews/.clickup-review-active` (enables plugin hooks for this session)
 
 ```bash
 if ! grep -q 'code-reviews/' .gitignore 2>/dev/null; then
-  echo '.claude/code-reviews/' >> .gitignore
+  echo 'code-reviews/' >> .gitignore
 fi
 ```
 
 1. Verificar `CLICKUP_API_TOKEN`, `List ID`, `Shortname` (MEMORY.md) — falta algum? → setup
-2. Local cache: verificar `.claude/code-reviews/` da fase audit
+2. Local cache: verificar `code-reviews/` da fase audit
 3. Resume: CU Manager verifica tickets já em "planning" → apresentar ao user
 4. **Cache Reconciliation (1x/sessão):** CU Manager: RECONCILE CACHE → report divergências
 
@@ -188,7 +188,7 @@ Merged tickets: fechar B + comment "Consolidado com {A}" + dependência ClickUp 
 
 ## Checklist (Maestro verifica ANTES de reportar ao user)
 
-- [ ] Gitignore: `.claude/code-reviews/` presente
+- [ ] Gitignore: `code-reviews/` presente
 - [ ] CU Manager spawned, config validada, RECONCILE CACHE executado
 - [ ] Local cache detectado, sessão identificada
 - [ ] Comments fetched para TODOS os tickets (via CU Manager)
@@ -199,7 +199,7 @@ Merged tickets: fechar B + comment "Consolidado com {A}" + dependência ClickUp 
 - [ ] Todos os tickets válidos: `#### Planeamento` + `#### Decisões Planning`
 - [ ] Todos os `.md` locais PUT para ClickUp com frontmatter actualizado
 - [ ] Dependências definidas no ClickUp
-- [ ] Hook guard deactivated: `rm -f .claude/code-reviews/.clickup-review-active`
+- [ ] Hook guard deactivated: `rm -f code-reviews/.clickup-review-active`
 - [ ] Tickets ao status correcto ("ready for dev" ou "Closed")
 - [ ] Merged tickets: B fechado, A enriquecido
 - [ ] Wave plan documentado e apresentado ao user

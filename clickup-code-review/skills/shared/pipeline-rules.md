@@ -1,4 +1,4 @@
-# Pipeline Rules (Shared — v5.2.5)
+# Pipeline Rules (Shared — v5.2.6)
 
 Regras transversais a todos os agentes do pipeline de code review. Lido no arranque por TODOS os agents.
 
@@ -70,7 +70,7 @@ Se detectar → substituir por placeholder (`{API_KEY}`, `{PASSWORD}`) ANTES de 
 - NUNCA usar `grep -P` (macOS incompativel) — usar `grep -E`
 - NUNCA usar comandos Bash encadeados (`&&`, `||`, `;`) — usar exclusivamente single-statement. Cada operação é um Bash call separado.
 - NUNCA usar bash multi-linha — cada Bash call tem de ser 1 linha.
-- NUNCA usar `/tmp/` — todos os ficheiros temporários em `.claude/code-reviews/`
+- NUNCA usar `/tmp/` — todos os ficheiros temporários em `code-reviews/`
 - NUNCA usar `find | while read` ou pipelines complexos — usar ferramentas: **Glob** (descoberta), **Read** (leitura), **Grep** (pesquisa), **Edit** (actualização).
 - NUNCA usar `${VARIABLE}` — usar SEMPRE `$VARIABLE`. Inclui `${#VAR}`, `${VAR:n:m}`.
 - Para ficheiros locais: preferir ferramentas (Glob/Read/Edit/Grep) a bash. Bash só para: curl (API), git, mkdir -p, single-statement utilitários.

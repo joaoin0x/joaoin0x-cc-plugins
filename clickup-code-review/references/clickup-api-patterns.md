@@ -152,7 +152,7 @@ curl -s -X PUT -H "Authorization: $CLICKUP_API_TOKEN" \
 |------|---------|
 | GET description | Use `?include_markdown_description=true`, read `markdown_description` field |
 | PUT description | Use `markdown_description` field, NEVER `description` |
-| Never overwrite | For updates: read from local cache (`.claude/code-reviews/`), modify locally, then PUT. For creation: use 2-step (POST name → PUT full description composed locally). Only GET from ClickUp as fallback if local file doesn't exist. |
+| Never overwrite | For updates: read from local cache (`code-reviews/`), modify locally, then PUT. For creation: use 2-step (POST name → PUT full description composed locally). Only GET from ClickUp as fallback if local file doesn't exist. |
 | HTML comments | `<!-- -->` render as VISIBLE TEXT in ClickUp. Never use as delimiters. |
 | Markdown checklists | `- [ ]` renders as interactive checkboxes in ClickUp. Zero API calls. |
 
@@ -367,7 +367,7 @@ Uses the same `GET /task/*` permission pattern already configured in the setup w
 
 ### Purpose
 
-Local `.md` files in `.claude/code-reviews/` serve as:
+Local `.md` files in `code-reviews/` serve as:
 1. **Composition surface** — write content locally, then PUT to ClickUp
 2. **Fallback** — if PUT fails or session dies, content is preserved on disk
 3. **Persistent state** — YAML frontmatter tracks sync state across sessions
@@ -378,7 +378,7 @@ Local `.md` files in `.claude/code-reviews/` serve as:
 ### Folder structure
 
 ```
-.claude/code-reviews/
+code-reviews/
 └── {main_task_id} - {Review Name}/
     ├── _main.md
     ├── {area_task_id} - {Area Name}/
@@ -416,11 +416,11 @@ Fields:
 
 ### Gitignore
 
-**MANDATORY:** Maestro adds `.claude/code-reviews/` to `.gitignore` at start of each skill if not present.
+**MANDATORY:** Maestro adds `code-reviews/` to `.gitignore` at start of each skill if not present.
 
 ```bash
 if ! grep -q 'code-reviews/' .gitignore 2>/dev/null; then
-  echo '.claude/code-reviews/' >> .gitignore
+  echo 'code-reviews/' >> .gitignore
 fi
 ```
 

@@ -1,4 +1,4 @@
-# ClickUp Code Review Plugin (v5.2.5)
+# ClickUp Code Review Plugin (v5.2.6)
 
 Multi-agent code review lifecycle for Claude Code: audit, planning, fixing, and functional testing, with ClickUp integration, evidence-based status gates, and a self-contained HTML dashboard.
 
@@ -54,7 +54,7 @@ MAESTRO (the user's Claude Code session)
 CLICKUP MANAGER
   - ALL ClickUp API operations (create, update, status, comments)
   - Evidence gate verification
-  - Local cache management (.claude/code-reviews/)
+  - Local cache management (code-reviews/)
   - REFUSES status transitions without proof
 
 SPECIALISTS (5 agents)
@@ -95,7 +95,7 @@ Every status transition requires proof. The ClickUp Manager REFUSES transitions 
 
 New status between "in progress" and "testing" that provides board visibility for which tickets are being implemented vs awaiting DA review.
 
-### Read-Ahead Queue (v5.2.5)
+### Read-Ahead Queue (v5.2.6)
 
 PREPARE paralelo (max 3, read-only, persiste `.prepare.md`) → IMPLEMENT serial (write/stage). Staleness check, deadlock detection, fallback to serial. Wave grouping mantém-se para ordenação/dependências.
 
@@ -126,7 +126,7 @@ Self-contained HTML template (`templates/dashboard.html`) with `{{DASHBOARD_JSON
 - Export: Copy Markdown + Download CSV
 - Pipeline Quality metrics (false positive rate, severity drift, rejection correlation)
 
-Each skill ADDS to the JSON cumulatively. Maestro writes output to `.claude/code-reviews/{dir}/dashboard.html`.
+Each skill ADDS to the JSON cumulatively. Maestro writes output to `code-reviews/{dir}/dashboard.html`.
 
 ### 3-Layer Resilience
 
@@ -134,7 +134,7 @@ Each skill ADDS to the JSON cumulatively. Maestro writes output to `.claude/code
 {REVIEW_DIR}/progress/agent-{name}-progress.md   (project-scoped)
     |
     v  Maestro reads
-.claude/code-reviews/{dir}/      (permanent SOT, YAML frontmatter + markdown body)
+code-reviews/{dir}/      (permanent SOT, YAML frontmatter + markdown body)
     |
     v  ClickUp Manager syncs
 ClickUp API (task description)   (cloud, visible to team)
@@ -142,7 +142,7 @@ ClickUp API (task description)   (cloud, visible to team)
 
 ### Local File Cache
 
-`.claude/code-reviews/` stores one `.md` per ticket with YAML frontmatter (task_id, area, severity, status, commit_sha, branch, last_synced, last_comment_id) and progressive body sections added by each skill phase.
+`code-reviews/` stores one `.md` per ticket with YAML frontmatter (task_id, area, severity, status, commit_sha, branch, last_synced, last_comment_id) and progressive body sections added by each skill phase.
 
 ### Credential Security
 
@@ -228,7 +228,7 @@ clickup-code-review/
 │   ├── devils-advocate.md           # opus — sceptical gatekeeper (4 modes)
 │   └── code-simplifier.md           # sonnet — anti-complexity
 ├── hooks/
-│   ├── hooks.json                   # Plugin-bundled PreToolUse matchers (v5.2.5)
+│   ├── hooks.json                   # Plugin-bundled PreToolUse matchers (v5.2.6)
 │   ├── orchestration-auto-approve.sh  # Agent/SendMessage auto-approve
 │   ├── file-ops-auto-approve.sh     # Write/Edit/Read auto-approve (deny .env/.sh; whitelist safe exts)
 │   ├── bash-safe-auto-approve.sh    # Bash auto-approve: git read-only, staging, commits, test runners
@@ -236,7 +236,7 @@ clickup-code-review/
 ├── references/
 │   └── clickup-api-patterns.md      # Shared API patterns (all skills)
 ├── skills/
-│   ├── shared/                      # Shared protocols (v5.2.5 — referenced by all agents)
+│   ├── shared/                      # Shared protocols (v5.2.6 — referenced by all agents)
 │   │   ├── pipeline-rules.md        # Communication, streaming, progress, credentials, forbidden
 │   │   ├── planning-protocol.md     # PASSO skeleton, triangle validation, planeamento template
 │   │   └── fix-protocol.md          # PASSO skeleton, specialist↔DA flow, evidence gates

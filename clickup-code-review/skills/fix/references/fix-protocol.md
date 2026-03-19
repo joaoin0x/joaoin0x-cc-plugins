@@ -1,11 +1,11 @@
-# Fix Protocol Reference (v5.2.5)
+# Fix Protocol Reference (v5.2.6)
 
 Technical reference for the fixing skill. The Maestro, specialist agents, DA, ClickUp Manager, and QA agents use this document for commit procedures, review protocols, evidence gates, and error handling.
 
 **v5.0 Changes vs v4:**
 - Evidence gate protocol for every status transition
 - "code review" intermediate status
-- Read-Ahead Queue: PREPARE paralelo + IMPLEMENT serial (v5.2.5)
+- Read-Ahead Queue: PREPARE paralelo + IMPLEMENT serial (v5.2.6)
 - Commit SHA + Branch binding in ticket description
 - `#### Decisões Fix` mandatory documentation
 - All ClickUp operations via ClickUp Manager
@@ -48,7 +48,7 @@ Before dispatching ANY ticket to a specialist, Maestro instructs ClickUp Manager
 
 ## Reading Ticket Context from Local Cache
 
-Read the ticket's local `.md` file from `.claude/code-reviews/{review_dir}/{area_dir}/{task_id}.md`.
+Read the ticket's local `.md` file from `code-reviews/{review_dir}/{area_dir}/{task_id}.md`.
 
 **Fix specialist reads UPDATED sub-sections first:**
 - If `##### Correcção Sugerida (Actualizado após Planeamento)` exists inside `#### Planeamento`, it has PRECEDENCE over the original `#### Correcção Sugerida`
@@ -200,7 +200,7 @@ ClickUp Manager consolidates `{REVIEW_DIR}/progress/agent-{name}-progress.md` in
 
 ---
 
-## Read-Ahead Queue (v5.2.5)
+## Read-Ahead Queue (v5.2.6)
 
 **PREPARE paralelo (read-only, max 3) → persist .prepare.md → IMPLEMENT serial (write/stage).**
 

@@ -83,14 +83,14 @@ Planning data is stored in the **task description** using `markdown_description`
 
 ## Description Read/Write (via Local Cache)
 
-**v4.1.0: The local `.md` file in `.claude/code-reviews/` is the composition surface. No GET→modify→PUT cycle needed. No GUARD 1/GUARD 2 needed.**
+**v4.1.0: The local `.md` file in `code-reviews/` is the composition surface. No GET→modify→PUT cycle needed. No GUARD 1/GUARD 2 needed.**
 
 ### Read (from local cache)
 
-Read the finding's local `.md` file from `.claude/code-reviews/{review_dir}/{area_dir}/{task_id}.md`. The file contains YAML frontmatter followed by the full ticket description.
+Read the finding's local `.md` file from `code-reviews/{review_dir}/{area_dir}/{task_id}.md`. The file contains YAML frontmatter followed by the full ticket description.
 
 ```bash
-FINDING_FILE=".claude/code-reviews/${REVIEW_DIR}/${AREA_DIR}/${TASK_ID}.md"
+FINDING_FILE="code-reviews/${REVIEW_DIR}/${AREA_DIR}/${TASK_ID}.md"
 
 # Extract content after YAML frontmatter
 DESC_CONTENT=$(awk '/^---$/{n++; next} n>=2' "$FINDING_FILE")

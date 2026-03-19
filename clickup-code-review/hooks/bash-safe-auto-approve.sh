@@ -25,7 +25,7 @@ exec 2>/dev/null
 
 # === GUARD CHECK (only active during plugin skill sessions) ===
 # Guard marker managed by a separate global hook (guard-marker-auto-approve.sh)
-GUARD="$CLAUDE_PROJECT_DIR/.claude/code-reviews/.clickup-review-active"
+GUARD="$CLAUDE_PROJECT_DIR/code-reviews/.clickup-review-active"
 if [ -f "$GUARD" ]; then
     age=$(($(date +%s) - $(stat -f '%m' "$GUARD")))
     if [ "$age" -gt 14400 ]; then
@@ -222,8 +222,8 @@ if echo "$command" | grep -qE '^echo "\$'; then
     allow
 fi
 
-# rm single file in .claude/code-reviews/ (CU Manager temp files — NOT recursive, -rf already denied above)
-if echo "$command" | grep -qE '^rm [^ ]*\.claude/code-reviews/'; then
+# rm single file in code-reviews/ (CU Manager temp files — NOT recursive, -rf already denied above)
+if echo "$command" | grep -qE '^rm [^ ]*\code-reviews/'; then
     allow
 fi
 

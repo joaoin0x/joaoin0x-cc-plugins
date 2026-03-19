@@ -1,4 +1,4 @@
-# Functional Test Checklists (v5.2.5)
+# Functional Test Checklists (v5.2.6)
 
 QA Specialist reference for Level 2 (Funcional) testing. Use these checklists for each page type encountered. All items must be verified before marking a page as PASS.
 
@@ -36,7 +36,7 @@ QA Specialist reference for Level 2 (Funcional) testing. Use these checklists fo
 
 ---
 
-## Visual/UI Quality (OBRIGATÓRIO em funcional/completo — v5.2.5)
+## Visual/UI Quality (OBRIGATÓRIO em funcional/completo — v5.2.6)
 
 - [ ] Elementos alinhados correctamente? (botões, labels, colunas de tabela)
 - [ ] Texto cortado ou overflow? (avaliar via evaluate_script se necessário)
@@ -50,7 +50,7 @@ QA Specialist reference for Level 2 (Funcional) testing. Use these checklists fo
 
 ---
 
-## Critical Thinking & Edge Cases (OBRIGATÓRIO em funcional/completo — v5.2.5)
+## Critical Thinking & Edge Cases (OBRIGATÓRIO em funcional/completo — v5.2.6)
 
 O QA pensa como utilizador real COM conhecimentos de dev/QA. Não testa apenas o "happy path".
 

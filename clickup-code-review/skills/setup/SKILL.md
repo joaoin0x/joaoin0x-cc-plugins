@@ -377,20 +377,20 @@ The `Bash(curl *)` permission patterns only match single-command Bash calls. Cli
 
 The hook is a **template** bundled with the plugin at `hooks/clickup-auto-approve.sh`. It must be **installed** to the user's hooks directory with `__SETTINGS_PATH__` replaced — this is NOT a plugin-bundled hook (unlike `hooks/hooks.json`).
 
-**Three complementary hook systems (v5.2.5):**
+**Three complementary hook systems (v5.2.6):**
 - `hooks/hooks.json` (plugin-bundled, auto-loaded): Agent/SendMessage/Write/Edit/Read + Bash matchers for orchestration, file ops, and safe git/test commands
 - `hooks/bash-safe-auto-approve.sh` (bundled, loaded via hooks.json): Bash auto-approve for git read-only ops, git staging, commits, test runners — deny-list first, whitelist second
 - `clickup-auto-approve.sh` (installed via setup wizard): Bash matcher for curl commands to ClickUp API — reads user's `settings.json` permissions dynamically
 
 **All three are needed.** The hooks.json handles tool-level + git/test auto-approval. The auto-approve script handles Bash(curl) auto-approval with user-configured permission patterns.
 
-**Version update (v5.2.5):** If the installed hook is outdated (from a previous plugin version), Step 6.0 detects the version mismatch and offers to re-install from the latest template.
+**Version update (v5.2.6):** If the installed hook is outdated (from a previous plugin version), Step 6.0 detects the version mismatch and offers to re-install from the latest template.
 
 **IMPORTANT:** The hook reads permissions from `settings.json` — it only approves operations the user authorized in Step 5. Anything not in the `permissions.allow` list still requires manual approval.
 
 **IMPORTANT:** settings.json hooks are loaded dynamically — no session restart needed.
 
-### 6.0 Hook version check (v5.2.5)
+### 6.0 Hook version check (v5.2.6)
 
 Check if an existing hook needs updating:
 
@@ -450,14 +450,14 @@ Add to `hooks.PreToolUse` array in `SETTINGS_PATH` (MERGE — do NOT overwrite e
 
 ## Step 7: Local Cache Gitignore
 
-Ensure `.claude/code-reviews/` is in the project's `.gitignore` to prevent accidentally committing cached ticket data.
+Ensure `code-reviews/` is in the project's `.gitignore` to prevent accidentally committing cached ticket data.
 
 ```bash
 if ! grep -q 'code-reviews/' .gitignore 2>/dev/null; then
-  echo '.claude/code-reviews/' >> .gitignore
-  echo "Added .claude/code-reviews/ to .gitignore"
+  echo 'code-reviews/' >> .gitignore
+  echo "Added code-reviews/ to .gitignore"
 else
-  echo ".claude/code-reviews/ already in .gitignore"
+  echo "code-reviews/ already in .gitignore"
 fi
 ```
 
@@ -481,7 +481,7 @@ After all 7 steps, present summary:
 | Shortname | {shortname} |
 | Permissões | {count}/18 autorizadas |
 | Hook | ✅ Instalado em {HOOKS_DIR} |
-| Local cache | ✅ `.claude/code-reviews/` em .gitignore |
+| Local cache | ✅ `code-reviews/` em .gitignore |
 
 Tudo pronto! Usa `/clickup-code-review` para lançar o code review.
 ```

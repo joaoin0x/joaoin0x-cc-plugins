@@ -4,7 +4,7 @@ description: Implement fixes for validated ClickUp code review tickets. Handles 
 user_invocable: true
 ---
 
-# ClickUp Code Review — Fix Skill (v5.2.5)
+# ClickUp Code Review — Fix Skill (v5.2.6)
 
 Execute planned fixes for validated tickets. Read-Ahead Queue — PREPARE paralelo (max 3) + IMPLEMENT serial. DA CODE-REVIEW + evidence gate + commit per ticket.
 
@@ -16,7 +16,7 @@ Execute planned fixes for validated tickets. Read-Ahead Queue — PREPARE parale
 ## FORBIDDEN (Maestro) — LER PRIMEIRO
 
 1. NUNCA implementar fixes directamente. Specialists implementam, DA revê, Maestro commita.
-2. NUNCA usar `/tmp/`. Tudo em `.claude/code-reviews/`.
+2. NUNCA usar `/tmp/`. Tudo em `code-reviews/`.
 3. NUNCA usar `grep -P`. Usar `grep -E`.
 4. NUNCA enviar shutdown_request sem ordem explícita do user.
 5. NUNCA re-spawnar agentes sem verificar se estão vivos (SendMessage "Status?").
@@ -34,7 +34,7 @@ Execute planned fixes for validated tickets. Read-Ahead Queue — PREPARE parale
 
 ---
 
-## Shutdown Rules (v5.2.5)
+## Shutdown Rules (v5.2.6)
 
 ### Quando fechar agentes
 Maestro PODE fechar specialists no FINAL de cada wave. DA e CU Manager persistem toda a sessão.
@@ -69,7 +69,7 @@ TODOS os agentes spawned com `team_name` e `name` para comunicação via SendMes
 
 ---
 
-## Read-Ahead Queue (v5.2.5)
+## Read-Ahead Queue (v5.2.6)
 
 **PREPARE paralelo (read-only, max 3) → persist .prepare.md → IMPLEMENT serial (write/stage).**
 
@@ -149,8 +149,8 @@ Restantes mantêm Read-Ahead.
 
 ## Phase 0: Configuration Check
 
-0. **Hook guard activation:** `touch .claude/code-reviews/.clickup-review-active` (enables plugin hooks for this session)
-1. Gitignore: verify `.claude/code-reviews/` in `.gitignore`
+0. **Hook guard activation:** `touch code-reviews/.clickup-review-active` (enables plugin hooks for this session)
+1. Gitignore: verify `code-reviews/` in `.gitignore`
 2. CU Manager: config check (token, list ID, shortname, status mapping)
 3. CU Manager: RECONCILE CACHE (1x per session)
 4. CU Manager: check for tickets at "in progress"/"code review" → present to user if found
@@ -218,7 +218,7 @@ After ALL tickets in wave:
 
 ## Checklist (Maestro verifica ANTES de reportar ao user)
 
-- [ ] Gitignore checked for `.claude/code-reviews/`
+- [ ] Gitignore checked for `code-reviews/`
 - [ ] CU Manager spawned, config validated, cache reconciled
 - [ ] Branch created
 - [ ] All tickets had comment check before dispatch
@@ -233,4 +233,4 @@ After ALL tickets in wave:
 - [ ] All tickets at correct status ("testing" or skipped)
 - [ ] Summary presented to user
 - [ ] User informed: NEVER auto-push
-- [ ] Hook guard deactivated: `rm -f .claude/code-reviews/.clickup-review-active`
+- [ ] Hook guard deactivated: `rm -f code-reviews/.clickup-review-active`

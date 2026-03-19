@@ -1,4 +1,4 @@
-# Fix Protocol (Shared — v5.2.5)
+# Fix Protocol (Shared — v5.2.6)
 
 Esqueleto do protocolo FIX — lido pelos specialists no arranque do mode FIX.
 

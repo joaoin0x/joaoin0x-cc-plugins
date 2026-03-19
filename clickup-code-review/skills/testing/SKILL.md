@@ -4,7 +4,7 @@ description: Functional browser testing via Chrome DevTools MCP with ClickUp tic
 user_invocable: true
 ---
 
-# ClickUp Code Review — Testing Skill (v5.2.5)
+# ClickUp Code Review — Testing Skill (v5.2.6)
 
 Functional browser testing via Chrome DevTools MCP. Validates post-fix tickets, discovers new bugs, manages QA lifecycle with DA QA-REVIEW.
 
@@ -21,7 +21,7 @@ Functional browser testing via Chrome DevTools MCP. Validates post-fix tickets, 
    "Navigate + check title" é smoke, NÃO funcional.
 3. NUNCA testar >5 páginas sem QA Specialist spawned. Sem QA activo após 5 min → PARAR e spawnar.
 4. NUNCA usar curl/wget como alternativa ao Chrome DevTools MCP.
-5. NUNCA usar `/tmp/`. Tudo em `.claude/code-reviews/`.
+5. NUNCA usar `/tmp/`. Tudo em `code-reviews/`.
 6. NUNCA assumir scope. Se o user não especificou, PERGUNTAR via AskUserQuestion.
 7. NUNCA fechar tickets sem validação de DA.
 8. NUNCA enviar shutdown_request sem ordem EXPLÍCITA do user. Ver Shutdown Rules.
@@ -37,7 +37,7 @@ Functional browser testing via Chrome DevTools MCP. Validates post-fix tickets, 
 
 ---
 
-## Shutdown Rules (v5.2.5)
+## Shutdown Rules (v5.2.6)
 
 ### Regra Absoluta
 NUNCA enviar shutdown_request a QUALQUER agente sem ordem EXPLÍCITA do user.
@@ -77,7 +77,7 @@ ANTES de shutdown_request:
 
 ## Phase 0: Configuration Check
 
-1. Gitignore: verify `.claude/code-reviews/` in `.gitignore`
+1. Gitignore: verify `code-reviews/` in `.gitignore`
 2. CU Manager: config check (token, list ID, shortname, status mapping)
 3. CU Manager: RECONCILE CACHE (1x per session)
 4. **TeamCreate (OBRIGATÓRIO — sem isto SendMessage não funciona):**
@@ -328,7 +328,7 @@ Fluxo (OBRIGATÓRIO para CADA finding):
 
 ## Checklist (Maestro verifica ANTES de reportar ao user)
 
-- [ ] Gitignore: `.claude/code-reviews/` presente
+- [ ] Gitignore: `code-reviews/` presente
 - [ ] CU Manager spawned, config validated, cache reconciled
 - [ ] Chrome DevTools MCP verified available by QA Specialist
 - [ ] Test mode selected by user

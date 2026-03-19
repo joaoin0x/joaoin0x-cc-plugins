@@ -4,7 +4,7 @@
 #
 # PURPOSE: Auto-approve file operations for:
 #   - Read: ALL files except sensitive paths (.env, .ssh/, credentials, keys)
-#   - Write/Edit: Plugin cache (.claude/code-reviews/) + safe source extensions
+#   - Write/Edit: Plugin cache (code-reviews/) + safe source extensions
 #
 # SECURITY:
 # - Sensitive files always fall through to manual approval
@@ -18,7 +18,7 @@
 # Suppress stderr — prevents hook runner from interpreting errors as hook failures
 exec 2>/dev/null
 
-GUARD="$CLAUDE_PROJECT_DIR/.claude/code-reviews/.clickup-review-active"
+GUARD="$CLAUDE_PROJECT_DIR/code-reviews/.clickup-review-active"
 if [ -f "$GUARD" ]; then
     age=$(($(date +%s) - $(stat -f '%m' "$GUARD")))
     if [ "$age" -gt 14400 ]; then
@@ -60,7 +60,7 @@ fi
 # === WRITE / EDIT ===
 
 # Always approve plugin cache directory
-if echo "$file_path" | grep -qE '\.claude/code-reviews/'; then
+if echo "$file_path" | grep -qE '\code-reviews/'; then
     echo '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow"}}'
     exit 0
 fi

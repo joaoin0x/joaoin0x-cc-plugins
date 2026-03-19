@@ -4,7 +4,7 @@ description: Use when performing comprehensive codebase audits with ClickUp tick
 user_invocable: true
 ---
 
-# ClickUp Code Review — Audit Skill (v5.2.5)
+# ClickUp Code Review — Audit Skill (v5.2.6)
 
 Multi-agent audit: specialists → DA filters → CU Manager creates tickets. No fixes applied.
 **API Patterns:** See `references/clickup-api-patterns.md` for all ClickUp API patterns.
@@ -23,7 +23,7 @@ Multi-agent audit: specialists → DA filters → CU Manager creates tickets. No
 7. NUNCA usar `grep -P`. Usar `grep -E`.
 8. NUNCA enviar shutdown_request sem ordem explícita do user.
 9. NUNCA fazer side-work durante audit activo. Contexto é finito.
-10. NUNCA usar `/tmp/`. Tudo em `.claude/code-reviews/` (project-scoped).
+10. NUNCA usar `/tmp/`. Tudo em `code-reviews/` (project-scoped).
 11. NUNCA ler agent .md files. Cada agente lê-se a si próprio.
 12. Keepalives só para audits >15 tickets. <10 tickets: 1 status update por fase.
 13. NUNCA assumir scope. Se o user não especificou, PERGUNTAR via AskUserQuestion.
@@ -35,7 +35,7 @@ Multi-agent audit: specialists → DA filters → CU Manager creates tickets. No
 
 ---
 
-## Shutdown Rules (v5.2.5)
+## Shutdown Rules (v5.2.6)
 
 Maestro PODE fechar specialists no FINAL de cada phase. DA + CU Manager persistem toda a sessão.
 
@@ -63,11 +63,11 @@ FORBIDDEN: NUNCA fechar DA ou CU Manager. NUNCA fechar specialists a MEIO de uma
 
 ## Phase 0: Configuration Check
 
-0. **Hook guard activation:** `touch .claude/code-reviews/.clickup-review-active` (enables plugin hooks for this session)
+0. **Hook guard activation:** `touch code-reviews/.clickup-review-active` (enables plugin hooks for this session)
 
 ```bash
 if ! grep -q 'code-reviews/' .gitignore 2>/dev/null; then
-  echo '.claude/code-reviews/' >> .gitignore
+  echo 'code-reviews/' >> .gitignore
 fi
 ```
 
@@ -111,7 +111,7 @@ Sem TeamCreate → agentes ficam isolados → SendMessage falha → audit quebra
 **Directory variables (CU Manager cria + partilha com todos):**
 ```
 PLUGIN_ROOT = $CLAUDE_PLUGIN_ROOT   (obter via: Bash "echo $CLAUDE_PLUGIN_ROOT")
-REVIEW_DIR  = ".claude/code-reviews/{main_task_id} - CC Review YYYY-MM-DD"
+REVIEW_DIR  = "code-reviews/{main_task_id} - CC Review YYYY-MM-DD"
 FINDINGS_DIR = "{REVIEW_DIR}/findings"
 PROGRESS_DIR = "{REVIEW_DIR}/progress"
 ```
@@ -185,9 +185,9 @@ Summary é REPORT do ClickUp, não recollection.
 
 ---
 
-## Maestro Checklist (v5.2.5)
+## Maestro Checklist (v5.2.6)
 
-- [ ] Gitignore: `.claude/code-reviews/` presente
+- [ ] Gitignore: `code-reviews/` presente
 - [ ] CU Manager spawned, config validada, RECONCILE CACHE executado
 - [ ] AskUserQuestion: category selection
 - [ ] CLAUDE.md lido: stack, conventions, security rules
@@ -204,4 +204,4 @@ Summary é REPORT do ClickUp, não recollection.
 - [ ] Summary gerado de dados reais (via CU Manager query)
 - [ ] Summary apresentado ao user → aguardar instrução
 - [ ] NUNCA shutdown sem ordem explícita do user
-- [ ] Hook guard deactivated: `rm -f .claude/code-reviews/.clickup-review-active`
+- [ ] Hook guard deactivated: `rm -f code-reviews/.clickup-review-active`

@@ -1,7 +1,7 @@
 ---
 name: clickup-manager
 description: >
-  Use this agent as the EXCLUSIVE bridge between all agents and the ClickUp API. Handles ALL ClickUp operations: ticket creation (POST), description updates (PUT), status changes with evidence gates, comment management, dependency tracking, and local file cache (.claude/code-reviews/). No other agent touches the ClickUp API — everything passes through this agent.
+  Use this agent as the EXCLUSIVE bridge between all agents and the ClickUp API. Handles ALL ClickUp operations: ticket creation (POST), description updates (PUT), status changes with evidence gates, comment management, dependency tracking, and local file cache (code-reviews/). No other agent touches the ClickUp API — everything passes through this agent.
 
   <example>Context: DA approved a finding and Maestro needs a ticket created. user: "create ClickUp ticket for this approved finding" assistant: "I'll use the clickup-manager agent to create the ticket and sync to local cache"</example>
   <example>Context: Specialist committed a fix and needs status updated to testing. user: "update ticket status to testing with commit evidence" assistant: "I'll use the clickup-manager agent to verify the evidence gate and update status"</example>
@@ -26,7 +26,7 @@ Prioridade: integridade dos dados > velocidade.
 - **ALWAYS** use `markdown_description` field (not `description`)
 - **ALWAYS** use `?include_markdown_description=true` on GET
 - **Rate limiting:** Counter at 80/min, sleep 20s. If 429: wait 60s, retry once.
-- **ALL files project-scoped** under `.claude/code-reviews/`. NO `/tmp/` paths.
+- **ALL files project-scoped** under `code-reviews/`. NO `/tmp/` paths.
 
 ## API Calls com JSON Complexo (padrão OBRIGATÓRIO)
 
@@ -79,7 +79,7 @@ You have OPERATIONS, not modes. Maestro tells you which to execute.
 
 5. GITIGNORE CHECK:
    Bash (single): grep -q 'code-reviews/' .gitignore 2>/dev/null || echo 'MISSING'
-   Se MISSING: Bash (single): echo '.claude/code-reviews/' >> .gitignore
+   Se MISSING: Bash (single): echo 'code-reviews/' >> .gitignore
 ```
 
 ## OPERATION: CREATE FOLDER TREE
@@ -89,7 +89,7 @@ Create local structure upfront so agents never create directories.
 **OBRIGATÓRIO: cada mkdir é um Bash call separado (single-statement = auto-aprovado).**
 
 ```
-REVIEW_DIR="{PROJECT_ROOT}/.claude/code-reviews/{main_task_id} - CC Review YYYY-MM-DD"
+REVIEW_DIR="{PROJECT_ROOT}/code-reviews/{main_task_id} - CC Review YYYY-MM-DD"
 
 Executar como calls Bash SEPARADOS (não juntar num script multi-linha):
   mkdir -p "{REVIEW_DIR}"
@@ -100,7 +100,7 @@ Executar como calls Bash SEPARADOS (não juntar num script multi-linha):
   mkdir -p "{REVIEW_DIR}/{area_task_id} - {AREA_NAME}"  (1 call por area)
 
 Substituir {REVIEW_DIR} pelo path COMPLETO em CADA call (sem variáveis de shell).
-Exemplo: mkdir -p "/Users/.../fslv2/.claude/code-reviews/86c8wh0rj - CC Review 2026-03-17/findings"
+Exemplo: mkdir -p "/Users/.../fslv2/code-reviews/86c8wh0rj - CC Review 2026-03-17/findings"
 
 Depois de criar dirs: usar Write TOOL (NUNCA bash/heredoc) para criar:
 
@@ -287,12 +287,12 @@ WRITE: Credential scan → POST /task/{id}/comment. Update last_comment_id.
 ## OPERATION: LOCAL CACHE MANAGEMENT
 
 ```
-Structure: .claude/code-reviews/{review_dir}/{area_dir}/{task_id}.md
+Structure: code-reviews/{review_dir}/{area_dir}/{task_id}.md
 YAML frontmatter: task_id, area, severity, priority, status, last_synced,
   last_comment_id, commit_sha, branch, dependencies, fix_attempts, qa_attempts
 Operations: CREATE, READ, UPDATE FRONTMATTER, UPDATE BODY, SYNC TO CLICKUP
 Fallback: if local missing → GET API, create local, continue
-Gitignore: verify .claude/code-reviews/ on first operation
+Gitignore: verify code-reviews/ on first operation
 ```
 
 ## OPERATION: RECONCILE CACHE
@@ -330,7 +330,7 @@ NOTA: Só actualiza cache local. NÃO muda status no ClickUp.
 ```
 
 **FORBIDDEN nesta operação:**
-- NUNCA usar `/tmp/` — todos os ficheiros em `.claude/code-reviews/`
+- NUNCA usar `/tmp/` — todos os ficheiros em `code-reviews/`
 - NUNCA gerar bash scripts multi-linha ou com `&&`
 - NUNCA usar `python3 << 'EOF'` heredocs
 - NUNCA usar `find | while read` pipelines — usar Glob TOOL
@@ -368,7 +368,7 @@ If detected → REJECT, report to Maestro.
   formatting 4 vezes na v5.0.3. ~4h desperdiçadas.
 - **NUNCA fazer GET sem `?include_markdown_description=true`**
   Sem este parâmetro o campo markdown_description não é retornado na resposta.
-- **NUNCA usar `/tmp/` — todos os ficheiros em `.claude/code-reviews/`**
+- **NUNCA usar `/tmp/` — todos os ficheiros em `code-reviews/`**
 - **NUNCA gerar bash multi-linha, `&&`, heredocs `<< 'EOF'`, `find`, pipes, `for` loops, `sed`**
   Para descobrir ficheiros: usar **Glob TOOL** (não `find`).
   Para listar/contar .md: `Glob("**/*.md", path="{REVIEW_DIR}")`.

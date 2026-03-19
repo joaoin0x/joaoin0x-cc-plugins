@@ -133,7 +133,7 @@ REGRA: Screenshots = ferramenta de trabalho — APAGAR antes de terminar.
 
 ---
 
-## MODE: TESTING (standalone — /clickup-code-review:testing) — v5.2.5
+## MODE: TESTING (standalone — /clickup-code-review:testing) — v5.2.6
 
 Teste funcional completo via Chrome DevTools MCP.
 **Snapshot-First + Human Usage + Design System SOT + Critical Thinking + Visual/UI.**
@@ -220,7 +220,7 @@ PASSO 4: REPORTAR
 PASSO 5: FINALIZAR
   - Reportar: "Páginas alcançáveis via UI: {N}. Rotas registadas: {M}. Órfãs: {O}."
   - Relatorio completo, APAGAR screenshots, summary ao DA + Maestro
-  - Copiar relatorio para .claude/code-reviews/
+  - Copiar relatorio para code-reviews/
 ```
 
 ---

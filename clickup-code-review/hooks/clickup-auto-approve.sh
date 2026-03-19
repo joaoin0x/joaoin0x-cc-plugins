@@ -1,6 +1,6 @@
 #!/bin/bash
 # ClickUp API Auto-Approve Hook (bundled with clickup-code-review plugin)
-# Plugin-Version: 5.2.5
+# Plugin-Version: 5.2.6
 # Hook: PreToolUse (matcher: Bash)
 #
 # PURPOSE: Bridge the gap between multi-statement Bash scripts and the
@@ -32,9 +32,9 @@ SETTINGS_PATH="__SETTINGS_PATH__"
 input=$(cat)
 command=$(echo "$input" | jq -r '.tool_input.command // ""')
 
-# Auto-approve local file operations for .claude/code-reviews/ (project-scoped)
-# v5.0.3: /tmp/findings/ eliminated — all files under .claude/code-reviews/
-if echo "$command" | grep -qE '(cat|tee|mkdir|echo|sed|date).*(\./\.claude/code-reviews/|\.claude/code-reviews/)'; then
+# Auto-approve local file operations for code-reviews/ (project-scoped)
+# v5.0.3: /tmp/findings/ eliminated — all files under code-reviews/
+if echo "$command" | grep -qE '(cat|tee|mkdir|echo|sed|date).*(\./\code-reviews/|\code-reviews/)'; then
     echo '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow"}}'
     exit 0
 fi

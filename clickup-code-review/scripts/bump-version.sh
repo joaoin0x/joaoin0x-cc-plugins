@@ -156,7 +156,7 @@ if [ "$NEW_VERSION" = "$CURRENT_VERSION" ]; then
 fi
 
 # --- Version pattern ---
-# Matches: (v5.2.1), — v5.2.0, (v5.1.1), "5.2.1" in .json, Plugin-Version: 5.2.5 in .sh
+# Matches: (v5.2.1), — v5.2.0, (v5.1.1), "5.2.1" in .json, Plugin-Version: 5.2.6 in .sh
 VERSION_REGEX='v[0-9]+\.[0-9]+\.[0-9]+'
 SH_VERSION_REGEX='Plugin-Version: [0-9]+\.[0-9]+\.[0-9]+'
 
@@ -167,7 +167,7 @@ echo ""
 # Collect .md files
 if [ "$MODE" = "all" ]; then
     echo -e "${CYAN}Modo: ALL — verificar todos os ficheiros${NC}"
-    MD_FILES=$(find "$PLUGIN_ROOT" -name '*.md' -not -path '*/docs/*-archive/*' -not -path '*/.git/*' -not -path '*/.claude/code-reviews/*' | sort)
+    MD_FILES=$(find "$PLUGIN_ROOT" -name '*.md' -not -path '*/docs/*-archive/*' -not -path '*/.git/*' -not -path '*/code-reviews/*' | sort)
     SH_FILES=$(find "$PLUGIN_ROOT" -name '*.sh' -not -path '*/.git/*' | sort)
 else
     if [ -z "$SINCE_REF" ]; then
