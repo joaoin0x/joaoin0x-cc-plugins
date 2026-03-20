@@ -1,6 +1,6 @@
 #!/bin/bash
 # ClickUp API Auto-Approve Hook (bundled with clickup-code-review plugin)
-# Plugin-Version: 5.2.8
+# Plugin-Version: 5.2.9
 # Hook: PreToolUse (matcher: Bash)
 #
 # PURPOSE: Bridge the gap between multi-statement Bash scripts and the

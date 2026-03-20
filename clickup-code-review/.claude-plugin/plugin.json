@@ -1,5 +1,5 @@
 {
   "name": "clickup-code-review",
   "description": "Multi-agent code review lifecycle with ClickUp integration: audit, planning, fixing, and testing with Devil's Advocate filtering and evidence-based status gates",
-  "version": "5.2.8"
+  "version": "5.2.9"
 }

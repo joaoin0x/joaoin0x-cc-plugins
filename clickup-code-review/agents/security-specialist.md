@@ -128,7 +128,7 @@ Seguir protocolo em `skills/shared/planning-protocol.md`.
 
 ---
 
-## MODE: PREPARE (Read-Ahead Queue — v5.2.8)
+## MODE: PREPARE (Read-Ahead Queue — v5.2.9)
 
 Quando Maestro spawna com "MODE: PREPARE":
 
