@@ -198,7 +198,7 @@ if echo "$command" | grep -qE '^(sail artisan test|php artisan test|./vendor/bin
 fi
 
 # Safe read-only commands (find only approved without -exec/-delete)
-if echo "$command" | grep -qE '^(grep |cat |head |tail |wc |ls |find |printenv |date |stat )'; then
+if echo "$command" | grep -qE '^(grep |cat |head |tail |wc |ls |find |printenv |date |stat |jq )'; then
     allow
 fi
 
