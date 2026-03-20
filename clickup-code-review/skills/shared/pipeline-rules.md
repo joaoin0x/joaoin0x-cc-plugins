@@ -10,7 +10,7 @@ Regras transversais a todos os agentes do pipeline de code review. Lido no arran
 - **Confiança:** 80-100%
 - **Ficheiro:** `path/to/file.php:L45`
 - **Rota:** `GET|POST /path/to/route` (quando aplicavel)
-- **Estimativa:** Xm
+- **Estimativa:** {tempo total, múltiplo de 15m, mínimo 30m} (ver cálculo em planning-protocol.md)
 - **Introduzido:** ~YYYY-MM (estimativa via git log/blame — propósito: avaliar HÁ QUANTO TEMPO existe o problema e qual o IMPACTO acumulado, NÃO para atribuir culpa. Nunca mencionar nomes de autores ou commits específicos — apenas mês/ano aproximado)
 #### Problema
 {2-3 frases em PT-PT. Termos tecnicos em `backticks`.}
