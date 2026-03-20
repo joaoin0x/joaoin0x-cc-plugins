@@ -54,6 +54,17 @@ allow() {
 
 # === EARLY WHITELIST (before deny list — safe commands that contain deny-list patterns) ===
 
+# Guard marker lifecycle: touch/rm of the session guard file
+# Must be early-whitelisted because rm would be caught by the deny list
+if echo "$command" | grep -qE '(touch|rm -f) [^ ]*code-reviews/\.clickup-review-active'; then
+    allow
+fi
+
+# mkdir for code-reviews directory (guard marker prerequisite)
+if echo "$command" | grep -qE '^mkdir -p code-reviews$'; then
+    allow
+fi
+
 # Git commit single-line: approved early because heredoc/substitution patterns in commit
 # messages would trigger deny checks. --no-verify/--amend still denied.
 if echo "$command" | grep -qE '^git commit -m '; then
