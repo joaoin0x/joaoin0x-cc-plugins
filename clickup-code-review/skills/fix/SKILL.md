@@ -4,7 +4,7 @@ description: Implement fixes for validated ClickUp code review tickets. Handles 
 user_invocable: true
 ---
 
-# ClickUp Code Review — Fix Skill (v5.2.9)
+# ClickUp Code Review — Fix Skill (v5.3.0)
 
 Execute planned fixes for validated tickets. Read-Ahead Queue — PREPARE paralelo (max 3) + IMPLEMENT serial. DA CODE-REVIEW + evidence gate + commit per ticket.
 
@@ -34,7 +34,7 @@ Execute planned fixes for validated tickets. Read-Ahead Queue — PREPARE parale
 
 ---
 
-## Shutdown Rules (v5.2.9)
+## Shutdown Rules (v5.3.0)
 
 ### Quando fechar agentes
 Maestro PODE fechar specialists no FINAL de cada wave. DA e CU Manager persistem toda a sessão.
@@ -69,7 +69,7 @@ TODOS os agentes spawned com `team_name` e `name` para comunicação via SendMes
 
 ---
 
-## Read-Ahead Queue (v5.2.9)
+## Read-Ahead Queue (v5.3.0)
 
 **PREPARE paralelo (read-only, max 3) → persist .prepare.md → IMPLEMENT serial (write/stage).**
 
@@ -190,8 +190,9 @@ For EACH ticket in current wave:
 3. CU Manager: status → "in progress"
 4. Specialist: implements fix + stages + sends diff to DA (CODE-REVIEW template in fix-protocol.md)
 5. CU Manager: status → "code review"
-6. DA APPROVED → specialist reports to Maestro → `git commit`
-   DA REQUEST-CHANGES → specialist corrects → re-stage → new diff to DA (max 2 rounds)
+6. DA APPROVED → specialist reports ficheiros modificados ao Maestro
+   → Maestro faz `git add <ficheiros>` + `git commit` (staging exclusivo do Maestro)
+   DA REQUEST-CHANGES → specialist corrects → new diff to DA (max 2 rounds)
 7. CU Manager: evidence gate (SHA + `#### Decisões Fix` + DA APPROVED) → status → "testing"
 
 After ALL tickets in wave:

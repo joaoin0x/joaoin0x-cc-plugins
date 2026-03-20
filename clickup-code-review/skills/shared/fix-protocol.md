@@ -1,4 +1,4 @@
-# Fix Protocol (Shared — v5.2.9)
+# Fix Protocol (Shared — v5.3.0)
 
 Esqueleto do protocolo FIX — lido pelos specialists no arranque do mode FIX.
 
@@ -34,16 +34,15 @@ PASSO 4: SELF-VALIDATE
   - Verificar conventions do projecto (CLAUDE.md)
   - Verificar que nao introduziu novos problemas
 
-PASSO 5: STAGE CHANGES
-  - git add <ficheiros especificos> (NUNCA git add . ou git add -A)
-  - Verificar git status — so ficheiros esperados staged
-  - Append progress: "{timestamp} | STAGED | ticket {id} | {N} files staged"
-
-PASSO 6: CAPTURAR DIFF
-  - STAGED_DIFF=$(git diff --staged)
+PASSO 5: REPORTAR FICHEIROS MODIFICADOS (NÃO fazer git add)
+  - Listar TODOS os ficheiros modificados/criados
+  - Capturar diff: git diff <ficheiros> (unstaged diff, NÃO staged)
   - Se diff > 200 linhas: salvar em ficheiro separado
+  - Append progress: "{timestamp} | MODIFIED | ticket {id} | {N} files: {lista}"
+  - PROIBIDO: git add, git stage, ou qualquer operação git de staging
+    O Maestro é o ÚNICO que faz git add + git commit (controla staging area)
 
-PASSO 7: ENVIAR AO DA (CODE-REVIEW)
+PASSO 6: ENVIAR AO DA (CODE-REVIEW)
   - SendMessage ao DA com template:
     ## CODE REVIEW — {Ticket Title}
     **Ticket ID:** {id}
@@ -55,13 +54,13 @@ PASSO 7: ENVIAR AO DA (CODE-REVIEW)
     {passos do plano}
     ### Files Modified
     {lista com descricao breve}
-    ### Staged diff
+    ### Diff
     {diff completo ou stats+sample+path se >200 linhas}
 
-PASSO 8: ESPERAR VERDICT DO DA
-  - APPROVED → report final ao Maestro (NUNCA commitar)
-    → report inclui: DA verdict + reasoning para ClickUp Manager gravar
-  - REQUEST-CHANGES → corrigir, re-stage, novo diff ao DA (max 2 rounds)
+PASSO 7: ESPERAR VERDICT DO DA
+  - APPROVED → report final ao Maestro com LISTA DE FICHEIROS (NUNCA commitar, NUNCA fazer git add)
+    → report inclui: DA verdict + reasoning + lista exacta de ficheiros modificados
+  - REQUEST-CHANGES → corrigir, capturar novo diff, enviar ao DA (max 2 rounds)
     → report inclui: cada round de feedback + correcção aplicada
   - Apos 2 rejeições → escalar ao Maestro com historico COMPLETO
 ```
@@ -77,7 +76,7 @@ Specialist reporta resultado final ao Maestro → Maestro commita.
 | Transição | Evidência Requerida |
 |-----------|-------------------|
 | ready for dev → in progress | .md local existe (MINIMO) + #### Planeamento (IDEAL) |
-| in progress → code review | Diff staged + diff enviado ao DA |
+| in progress → code review | Diff capturado + diff enviado ao DA |
 | code review → in progress | DA REQUEST-CHANGES (specialist corrige) |
 | code review → testing | DA APPROVED + Commit SHA + #### Decisões Fix |
 | testing → deploy to staging | DA QA-APPROVED |
@@ -94,7 +93,8 @@ Se fix causa regressão: `git revert <commit>`, max 2 retries por ticket.
 ## Rules
 
 - SEGUIR O PLANO — implementar o que foi planeado
-- STAGE, NUNCA COMMIT — só o Maestro commita. Staging é serial: um ticket de cada vez
+- NUNCA git add, NUNCA git commit — só o Maestro faz staging e commit
+  O specialist implementa (Edit/Write) e reporta a lista de ficheiros ao Maestro
 - UM TICKET DE CADA VEZ
 - FICAR NO SCOPE — so modificar ficheiros do plano
 - NAO correr comandos destrutivos

@@ -34,7 +34,7 @@ Pensas: "se eu precisar de modificar isto daqui a 3 meses, quanto tempo vou perd
 Ler no inicio da sessao:
 - `skills/shared/pipeline-rules.md` — comunicacao, streaming, progress, credenciais, forbidden, shutdown, output template
 - `skills/shared/planning-protocol.md` — PASSO skeleton, triangle validation, Planeamento template (obrigatório para MODE: PLANNING)
-- `skills/shared/fix-protocol.md` — branching, commit, staged diff, DA code review (obrigatório para MODE: FIX)
+- `skills/shared/fix-protocol.md` — branching, commit, diff capture, DA code review (obrigatório para MODE: FIX)
 
 ## Mode Selection Rule
 
@@ -156,7 +156,7 @@ PASSO 4: APÓS APROVAÇÃO
 
 ---
 
-## MODE: PREPARE (Read-Ahead Queue — v5.2.9)
+## MODE: PREPARE (Read-Ahead Queue — v5.3.0)
 
 Quando Maestro spawna com "MODE: PREPARE":
 
@@ -187,11 +187,11 @@ O Maestro re-spawna em MODE: FIX (= IMPLEMENT) com paths:
 
 ### Mission
 
-Review staged diffs for over-engineering, unnecessary complexity, and scope creep. Ensure fixes are minimal and focused.
+Review diffs for over-engineering, unnecessary complexity, and scope creep. Ensure fixes are minimal and focused.
 
 ### Evaluation Criteria
 
-When given staged diffs or code changes, evaluate for:
+When given diffs or code changes, evaluate for:
 - Unnecessary abstractions (helpers, utilities for one-time operations)
 - Over-engineering (feature flags, backwards-compatibility shims, premature patterns)
 - Scope creep (changes beyond what the ticket requires)

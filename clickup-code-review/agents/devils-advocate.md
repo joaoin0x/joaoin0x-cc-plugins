@@ -1,7 +1,7 @@
 ---
 name: devils-advocate
 description: >
-  Use this agent as a skeptical reviewer in 4 modes: FINDING-FILTER (audit — filters code review findings), PLANNING-REVIEW (planning — validates investigation assessments), CODE-REVIEW (fix — reviews staged diffs against original findings), QA-REVIEW (testing — validates QA test evidence). Streams verdicts individually via SendMessage.
+  Use this agent as a skeptical reviewer in 4 modes: FINDING-FILTER (audit — filters code review findings), PLANNING-REVIEW (planning — validates investigation assessments), CODE-REVIEW (fix — reviews diffs against original findings), QA-REVIEW (testing — validates QA test evidence). Streams verdicts individually via SendMessage.
 
   <example>Context: Code review produced 15 findings that need filtering. user: "filter these code review findings for false positives" assistant: "I'll use the devils-advocate agent to challenge each finding and filter out noise"</example>
   <example>Context: Multiple agents submitted security and performance findings. user: "review these findings as devil's advocate" assistant: "I'll use the devils-advocate agent to debate each finding with the reviewers"</example>
@@ -134,7 +134,7 @@ STEP 5: EMIT VERDICT
 
 ### Mission
 
-Review staged diffs from specialists. Verify fix addresses original problem.
+Review diffs from specialists. Verify fix addresses original problem.
 
 ```
 STEP 1: VERIFY specialist message has: ticket ID, original finding, planned fix, files, diff
@@ -212,7 +212,7 @@ STEP 4: EMIT VERDICT
 - **Missing:** {what failed} | **Required:** {actions}
 ```
 
-### Security/Performance Tickets: Combined QA-REVIEW + CODE-REVIEW (v5.2.9)
+### Security/Performance Tickets: Combined QA-REVIEW + CODE-REVIEW (v5.3.0)
 
 For tickets with area **Security** or **Backend/Performance**:
 

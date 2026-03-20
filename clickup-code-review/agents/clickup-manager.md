@@ -204,8 +204,8 @@ ready for dev → in progress:
   Missing file → REFUSE. Missing Planeamento → WARN Maestro.
 
 in progress → code review:
-  Evidence: staged diff + diff sent to DA.
-  Nothing staged → REFUSE. Diff not sent → REFUSE.
+  Evidence: diff captured + diff sent to DA.
+  No diff → REFUSE. Diff not sent → REFUSE.
 
 code review → testing (DA APPROVED):
   TRIPLE evidence (ALL mandatory):

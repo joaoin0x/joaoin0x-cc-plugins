@@ -1,11 +1,11 @@
-# Fix Protocol Reference (v5.2.9)
+# Fix Protocol Reference (v5.3.0)
 
 Technical reference for the fixing skill. The Maestro, specialist agents, DA, ClickUp Manager, and QA agents use this document for commit procedures, review protocols, evidence gates, and error handling.
 
 **v5.0 Changes vs v4:**
 - Evidence gate protocol for every status transition
 - "code review" intermediate status
-- Read-Ahead Queue: PREPARE paralelo + IMPLEMENT serial (v5.2.9)
+- Read-Ahead Queue: PREPARE paralelo + IMPLEMENT serial (v5.3.0)
 - Commit SHA + Branch binding in ticket description
 - `#### Decisões Fix` mandatory documentation
 - All ClickUp operations via ClickUp Manager
@@ -68,12 +68,14 @@ The fixing pipeline follows **"review before commit"** with **direct specialist<
 ```
 0. Maestro instructs ClickUp Manager: comment check (see above)
 1. Maestro instructs ClickUp Manager: status -> "in progress" (evidence: .md local exists)
-2. Specialist implements fix and stages with `git add` (NO commit)
+2. Specialist implements fix via Edit/Write (NUNCA faz git add — staging é exclusivo do Maestro)
 3. Specialist writes per-file progress to {REVIEW_DIR}/progress/agent-{name}-progress.md
-4. Specialist captures `git diff --staged`
+4. Specialist captures diff: `git diff <ficheiros>` (unstaged diff)
 5. If diff <= 200 lines: send full diff to DA via SendMessage
    If diff > 200 lines: save to {REVIEW_DIR}/diffs/fix-{ticket_id}.diff, send stats + sample + path
-6. Maestro instructs ClickUp Manager: status -> "code review" (evidence: diff staged + sent to DA)
+6. Specialist reports to Maestro: DA verdict + LISTA EXACTA de ficheiros modificados
+7. Maestro faz `git add <ficheiros específicos>` + `git commit` (1 commit por ticket)
+8. Maestro instructs ClickUp Manager: status -> "code review" (evidence: diff sent to DA)
 7. DA reviews:
    a. APPROVED -> specialist reports to Maestro (includes DA verdict + reasoning)
    b. REQUEST-CHANGES -> DA sends feedback to specialist -> specialist revises
@@ -200,7 +202,7 @@ ClickUp Manager consolidates `{REVIEW_DIR}/progress/agent-{name}-progress.md` in
 
 ---
 
-## Read-Ahead Queue (v5.2.9)
+## Read-Ahead Queue (v5.3.0)
 
 **PREPARE paralelo (read-only, max 3) → persist .prepare.md → IMPLEMENT serial (write/stage).**
 

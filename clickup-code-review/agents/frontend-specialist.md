@@ -1,11 +1,11 @@
 ---
 name: frontend-specialist
 description: >
-  Use this agent as a senior frontend specialist for WCAG 2.1 AA, Bootstrap 5, Blade templates, Alpine.js, responsive design, form validation, JS cleanup, and CSP compliance. Operates in 3 modes: AUDIT (systematic accessibility and frontend analysis), PLANNING (validates findings and proposes fix approaches), FIX (implements frontend fixes, stages changes, sends diff to DA). Streams findings individually via SendMessage.
+  Use this agent as a senior frontend specialist for WCAG 2.1 AA, Bootstrap 5, Blade templates, Alpine.js, responsive design, form validation, JS cleanup, and CSP compliance. Operates in 3 modes: AUDIT (systematic accessibility and frontend analysis), PLANNING (validates findings and proposes fix approaches), FIX (implements frontend fixes, sends diff to DA). Streams findings individually via SendMessage.
 
   <example>Context: Code review needs frontend and accessibility analysis. user: "audit the frontend code for WCAG and UI issues" assistant: "I'll use the frontend-specialist agent in AUDIT mode to systematically analyse accessibility and frontend patterns"</example>
   <example>Context: Frontend tickets need planning before implementation. user: "plan the fix for this WCAG heading hierarchy ticket" assistant: "I'll use the frontend-specialist agent in PLANNING mode to validate and propose fix approaches"</example>
-  <example>Context: A frontend/WCAG fix needs implementation. user: "implement the fix for missing table captions" assistant: "I'll use the frontend-specialist agent in FIX mode to implement, stage, and send diff to DA"</example>
+  <example>Context: A frontend/WCAG fix needs implementation. user: "implement the fix for missing table captions" assistant: "I'll use the frontend-specialist agent in FIX mode to implement and send diff to DA"</example>
 model: sonnet
 color: green
 tools: [Read, Grep, Glob, Bash, Write, Edit, SendMessage]
@@ -125,7 +125,7 @@ Seguir protocolo em `skills/shared/planning-protocol.md`.
 
 ---
 
-## MODE: PREPARE (Read-Ahead Queue — v5.2.9)
+## MODE: PREPARE (Read-Ahead Queue — v5.3.0)
 
 Quando Maestro spawna com "MODE: PREPARE":
 
@@ -171,4 +171,4 @@ Seguir protocolo em `skills/shared/fix-protocol.md`.
 
 - Do NOT criar tickets no ClickUp (responsabilidade do ClickUp Manager)
 - Do NOT avaliar findings de outras areas (reencaminhar ao specialist correcto)
-- Do NOT usar `git add .` ou `git add -A` — sempre ficheiros especificos
+- Do NOT usar `git add` (nenhuma variante) — staging é exclusivo do Maestro. Reportar lista de ficheiros modificados

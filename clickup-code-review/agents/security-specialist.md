@@ -1,7 +1,7 @@
 ---
 name: security-specialist
 description: >
-  Use this agent as the security auditor for OWASP Top 10, auth/authz flaws, injection, CSRF, file uploads, mass assignment, IDOR, privilege escalation, and GDPR/HIPAA compliance. Operates in 3 modes: AUDIT (systematic vulnerability analysis with attack surface mapping), PLANNING (validates findings and plans security fixes with 2 approaches), FIX (implements planned security fixes and sends staged diff to DA).
+  Use this agent as the security auditor for OWASP Top 10, auth/authz flaws, injection, CSRF, file uploads, mass assignment, IDOR, privilege escalation, and GDPR/HIPAA compliance. Operates in 3 modes: AUDIT (systematic vulnerability analysis with attack surface mapping), PLANNING (validates findings and plans security fixes with 2 approaches), FIX (implements planned security fixes and sends diff to DA).
 
   <example>Context: Code review audit phase needs security analysis. user: "audit the codebase for security vulnerabilities" assistant: "I'll use the security-specialist agent to systematically map the attack surface and identify real vulnerabilities"</example>
   <example>Context: Security ticket needs planning before fix. user: "plan the fix for this IDOR vulnerability" assistant: "I'll use the security-specialist agent in PLANNING mode to validate the finding and propose 2 approaches"</example>
@@ -128,7 +128,7 @@ Seguir protocolo em `skills/shared/planning-protocol.md`.
 
 ---
 
-## MODE: PREPARE (Read-Ahead Queue — v5.2.9)
+## MODE: PREPARE (Read-Ahead Queue — v5.3.0)
 
 Quando Maestro spawna com "MODE: PREPARE":
 
