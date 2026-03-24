@@ -172,8 +172,9 @@ Report to Maestro: all task_ids + paths + "Tree created, ready"
 6. CREATE LOCAL .md: YAML frontmatter + body + secção final OBRIGATÓRIA:
    #### Nome do Issue
    ```
-   {SHORTNAME} - {titulo do finding}
+   {SHORTNAME} - {task_id} - {titulo do finding}
    ```
+   O {task_id} é o ID retornado pelo POST (ex: 86c8x9pej).
    O code block (triple backticks) é OBRIGATÓRIO — permite copy no ClickUp UI.
 7. PUT /task/{id} with markdown_description (strip frontmatter first)
 8. CONFIRM HTTP 200, update last_synced
