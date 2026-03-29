@@ -113,11 +113,21 @@ PASSO 2: DETECTAR CONFLITOS DE FICHEIROS
   Edge case: conflito transitivo, ficheiros implicitamente partilhados
 
 PASSO 3: AVALIAR TICKET CONSOLIDATION
-  Para cada par na MESMA AREA com ficheiros comuns:
-    5 criterios: (1) mesma area, (2) severidade Medium/Low, (3) QA compativel,
-    (4) fixes nao-conflituantes, (5) scope combinado <= 5 ficheiros
-    TODOS passam → propor merge ao DA. QUALQUER falha → manter separados.
-    REGRA: Critical/High NUNCA merged. Merge e SUGESTAO ao DA.
+  Para cada par de tickets, avaliar se faz sentido combinar num único branch/commit:
+
+  Critérios de merge (TODOS devem ser verdadeiros):
+    (1) Ficheiros em comum ou código adjacente (mesmo ficheiro/módulo)
+    (2) Fixes não-conflituantes (não interferem entre si)
+    (3) Combinar reduz overhead real (menos branches, menos review cycles)
+    (4) Scope combinado ainda é reviewable num único code review
+
+  SEM restrições artificiais de:
+    - Severidade: High+High que tocam no mesmo controller → merge faz MAIS sentido
+    - Área: backend+frontend no mesmo blade.php → merge válido
+    - Número de ficheiros: 8 ficheiros coerentes > 2×4 ficheiros em branches separados
+
+  Merge é SEMPRE sugestão ao DA — Investigation propõe, DA decide.
+  Justificar CADA merge proposto: que overhead poupa e porquê os fixes não conflituam.
 
 PASSO 4: DETECTAR DEPENDENCIAS CROSS-AREA
   - Migration antes de code fix? Ticket depende de outro?

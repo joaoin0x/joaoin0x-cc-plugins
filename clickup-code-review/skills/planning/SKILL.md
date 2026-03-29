@@ -131,7 +131,7 @@ Paralelismo: áreas diferentes em paralelo. Mesma área >15 tickets → sub-batc
 
 Após TODOS os specialists: Investigation analisa todos os planos validados:
 1. Cross-area dependencies + file conflicts + execution order
-2. Ticket consolidation (mesma área + Medium/Low + ≤5 ficheiros → propor merge)
+2. Ticket consolidation (ficheiros comuns, fixes não-conflituantes, reduz overhead → propor merge ao DA)
 3. Wave grouping (sem conflitos intra-wave) + routing por specialist
 
 Investigation → DA: wave plan proposto → ping-pong (max 3 rounds) → plan final ao Maestro.
