@@ -4,7 +4,7 @@ description: Implement fixes for validated ClickUp code review tickets. Handles 
 user_invocable: true
 ---
 
-# ClickUp Code Review — Fix Skill (v5.3.0)
+# ClickUp Code Review — Fix Skill (v5.3.1)
 
 Execute planned fixes for validated tickets. Read-Ahead Queue — PREPARE paralelo (max 3) + IMPLEMENT serial. DA CODE-REVIEW + evidence gate + commit per ticket.
 
@@ -34,7 +34,7 @@ Execute planned fixes for validated tickets. Read-Ahead Queue — PREPARE parale
 
 ---
 
-## Shutdown Rules (v5.3.0)
+## Shutdown Rules (v5.3.1)
 
 ### Quando fechar agentes
 Maestro PODE fechar specialists no FINAL de cada wave. DA e CU Manager persistem toda a sessão.
@@ -69,9 +69,9 @@ TODOS os agentes spawned com `team_name` e `name` para comunicação via SendMes
 
 ---
 
-## Read-Ahead Queue (v5.3.0)
+## Read-Ahead Queue (v5.3.1)
 
-**PREPARE paralelo (read-only, max 3) → persist .prepare.md → IMPLEMENT serial (write/stage).**
+**PREPARE paralelo (read-only, max 3) → persist .prepare.md → IMPLEMENT serial (write/report).**
 
 ### Phase A — PREPARE (paralelo, max 3 simultâneos)
 
@@ -95,7 +95,7 @@ TODOS os agentes spawned com `team_name` e `name` para comunicação via SendMes
    c. Se stale: flag "STALE — ficheiros alterados: {list}"
 6. Maestro re-spawna specialist em **MODE: IMPLEMENT** com:
    - Ticket .md path + .prepare.md path + staleness flag (se aplicável)
-7. Specialist: lê .prepare.md → se stale re-lê ficheiros → implementa → stage → diff ao DA
+7. Specialist: lê .prepare.md → se stale re-lê ficheiros → implementa → reporta ficheiros ao Maestro → diff ao DA
 8. DA: CODE-REVIEW → APPROVED / REQUEST-CHANGES
 9. APPROVED → Maestro commita → dispatch próximo
 
@@ -188,7 +188,7 @@ For EACH ticket in current wave:
 1. CU Manager: comment check → assess impact → proceed/skip/adapt
 2. Maestro provides FULL context to specialist: ticket ID + Problema + Impacto + Planeamento (updated sub-sections have PRECEDENCE) + Plugin root: {PLUGIN_ROOT}
 3. CU Manager: status → "in progress"
-4. Specialist: implements fix + stages + sends diff to DA (CODE-REVIEW template in fix-protocol.md)
+4. Specialist: implements fix + reports modified files to Maestro + sends diff to DA (CODE-REVIEW template in fix-protocol.md)
 5. CU Manager: status → "code review"
 6. DA APPROVED → specialist reports ficheiros modificados ao Maestro
    → Maestro faz `git add <ficheiros>` + `git commit` (staging exclusivo do Maestro)

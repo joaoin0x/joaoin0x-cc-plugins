@@ -1,4 +1,4 @@
-# Planning Protocol (Shared — v5.3.0)
+# Planning Protocol (Shared — v5.3.1)
 
 Esqueleto do protocolo PLANNING. Lido pelos specialists no arranque do mode PLANNING.
 
@@ -35,7 +35,7 @@ PASSO 4: IDENTIFICAR DEPENDENCIAS
 
 PASSO 5A: ENVIAR PLANO AO DA + INVESTIGATION
   - Append progress: "{timestamp} | PLANNING | ticket {id} | PLAN_SUBMITTED"
-  - SendMessage ao DA (PLANNING-REVIEW) + Investigation (em paralelo)
+  - **OBRIGATORIO:** SendMessage ao DA (PLANNING-REVIEW) E SendMessage ao Investigation — EM PARALELO, AMBOS na mesma fase. NAO enviar apenas ao DA.
   - Formato: Ticket ID, Finding válido, Severidade re-avaliada, Abordagem A/B,
     Ficheiros, Dependências, Estimativa, QA
   - Esperar feedback do DA E Investigation

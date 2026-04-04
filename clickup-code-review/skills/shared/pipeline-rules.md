@@ -1,4 +1,4 @@
-# Pipeline Rules (Shared — v5.3.0)
+# Pipeline Rules (Shared — v5.3.1)
 
 Regras transversais a todos os agentes do pipeline de code review. Lido no arranque por TODOS os agents.
 
@@ -43,6 +43,15 @@ Regras transversais a todos os agentes do pipeline de code review. Lido no arran
 ## Streaming Rule
 
 1 finding/verdict por SendMessage. NUNCA acumular ou batch. Enviar assim que pronto.
+
+## Finding Dedup (AUDIT mode)
+
+Manter lista local de findings ja submetidos ao DA (por path de ficheiro finding):
+- Apos SendMessage ao DA com finding path → registar path como SUBMITTED
+- Se DA responder APPROVED/REJECTED → registar como PROCESSED
+- NUNCA re-enviar finding com status SUBMITTED ou PROCESSED ao DA
+- Se precisar re-submeter (e.g., apos correccao): usar novo ficheiro finding com sufixo "-v2"
+- Verificar ANTES de cada SendMessage ao DA: "Ja submeti este finding?"
 
 ## Progress Tracking
 

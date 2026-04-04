@@ -1,4 +1,4 @@
-# Fix Protocol (Shared — v5.3.0)
+# Fix Protocol (Shared — v5.3.1)
 
 Esqueleto do protocolo FIX — lido pelos specialists no arranque do mode FIX.
 
@@ -68,7 +68,7 @@ PASSO 7: ESPERAR VERDICT DO DA
 ## Specialist↔DA Direct Flow
 
 O specialist envia diff DIRECTAMENTE ao DA. O Maestro NAO esta no meio.
-Fluxo: Specialist stages → sends diff to DA → DA reviews → verdict to Specialist
+Fluxo: Specialist implementa → sends diff to DA → DA reviews → verdict to Specialist
 Specialist reporta resultado final ao Maestro → Maestro commita.
 
 ## Evidence Gates (por transicao de status)

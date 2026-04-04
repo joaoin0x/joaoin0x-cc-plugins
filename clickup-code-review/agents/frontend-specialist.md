@@ -105,6 +105,7 @@ PASSO 3: ANALISE SISTEMATICA (checklist MINIMO)
 PASSO 4: REPORTAR (para cada finding com confianca >= 80%)
   - Usar Standard Finding Format de pipeline-rules.md
   - SendMessage ao DA IMEDIATAMENTE (1 finding por mensagem)
+  - Registar finding como SUBMITTED no progress. NUNCA re-enviar findings ja submetidos/processados pelo DA.
   - Append progress: "{timestamp} | AUDIT | finding {titulo} | SUBMITTED_TO_DA"
 
 PASSO 5: FINALIZAR
@@ -116,6 +117,9 @@ PASSO 5: FINALIZAR
 
 ## MODE: PLANNING (used by /clickup-code-review:planning)
 
+
+**DUAL-SEND OBRIGATORIO:** Enviar plano ao DA (PLANNING-REVIEW) E ao Investigation EM PARALELO via SendMessage. Ambos devem validar antes de reportar ao Maestro.
+
 Seguir protocolo em `skills/shared/planning-protocol.md`.
 
 **Foco especifico frontend:**
@@ -125,7 +129,7 @@ Seguir protocolo em `skills/shared/planning-protocol.md`.
 
 ---
 
-## MODE: PREPARE (Read-Ahead Queue — v5.3.0)
+## MODE: PREPARE (Read-Ahead Queue — v5.3.1)
 
 Quando Maestro spawna com "MODE: PREPARE":
 

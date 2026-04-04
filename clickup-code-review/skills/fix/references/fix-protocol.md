@@ -1,11 +1,11 @@
-# Fix Protocol Reference (v5.3.0)
+# Fix Protocol Reference (v5.3.1)
 
 Technical reference for the fixing skill. The Maestro, specialist agents, DA, ClickUp Manager, and QA agents use this document for commit procedures, review protocols, evidence gates, and error handling.
 
 **v5.0 Changes vs v4:**
 - Evidence gate protocol for every status transition
 - "code review" intermediate status
-- Read-Ahead Queue: PREPARE paralelo + IMPLEMENT serial (v5.3.0)
+- Read-Ahead Queue: PREPARE paralelo + IMPLEMENT serial (v5.3.1)
 - Commit SHA + Branch binding in ticket description
 - `#### Decisões Fix` mandatory documentation
 - All ClickUp operations via ClickUp Manager
@@ -109,15 +109,15 @@ The specialist MUST send ALL of the following context to the DA. Information asy
 ### Files Modified
 {list of files with brief description of each change}
 
-### Staged diff
+### Diff
 ` ` `diff
-{output of git diff --staged — full or partial, see large diff protocol}
+{output of git diff <ficheiros> — unstaged diff, full or partial, see large diff protocol}
 ` ` `
 ```
 
 ### Large Diff Protocol
 
-If staged diff exceeds 200 lines:
+If diff exceeds 200 lines:
 1. Save to `{REVIEW_DIR}/diffs/fix-{ticket_id}.diff`
 2. Send to DA: statistics (files changed, insertions, deletions) + sample (first 50 lines) + path to full diff
 3. DA reads full diff from file if needed
@@ -131,7 +131,7 @@ If staged diff exceeds 200 lines:
 | Transition | Evidence Required | Verified By |
 |------------|-------------------|-------------|
 | ready for dev -> in progress | MINIMUM: .md local exists. IDEAL: `#### Planeamento` present | ClickUp Manager |
-| in progress -> code review | Staged diff exists + SendMessage sent to DA | ClickUp Manager |
+| in progress -> code review | Diff captured + SendMessage sent to DA | ClickUp Manager |
 | code review -> in progress | DA REQUEST-CHANGES verdict | ClickUp Manager |
 | code review -> testing | DA APPROVED + Commit SHA verified + `#### Decisões Fix` documented | ClickUp Manager |
 
@@ -202,9 +202,9 @@ ClickUp Manager consolidates `{REVIEW_DIR}/progress/agent-{name}-progress.md` in
 
 ---
 
-## Read-Ahead Queue (v5.3.0)
+## Read-Ahead Queue (v5.3.1)
 
-**PREPARE paralelo (read-only, max 3) → persist .prepare.md → IMPLEMENT serial (write/stage).**
+**PREPARE paralelo (read-only, max 3) → persist .prepare.md → IMPLEMENT serial (write/report).**
 
 ### Phase A — PREPARE (paralelo, max 3 simultâneos)
 
@@ -228,7 +228,7 @@ ClickUp Manager consolidates `{REVIEW_DIR}/progress/agent-{name}-progress.md` in
    c. Se stale: flag "STALE — ficheiros alterados: {list}"
 6. Maestro re-spawna specialist em **MODE: IMPLEMENT** com:
    - Ticket .md path + .prepare.md path + staleness flag (se aplicável)
-7. Specialist: lê .prepare.md → se stale re-lê ficheiros → implementa → stage → diff ao DA
+7. Specialist: lê .prepare.md → se stale re-lê ficheiros → implementa → reporta ficheiros ao Maestro → diff ao DA
 8. DA: CODE-REVIEW → APPROVED / REQUEST-CHANGES
 9. APPROVED → Maestro commita → dispatch próximo
 
@@ -338,7 +338,7 @@ The Devil's Advocate operates in **CODE-REVIEW** mode during the fixing skill.
 ### DA Revision Limits
 
 - Maximum **2 revision rounds** per ticket (specialist<->DA direct loop)
-- Round 1: DA sends REQUEST-CHANGES -> specialist revises -> re-stages -> new diff to DA
+- Round 1: DA sends REQUEST-CHANGES -> specialist revises -> re-implements -> new diff to DA
 - Round 2: Same cycle
 - After 2 rejections: specialist escalates to Maestro with COMPLETE feedback history
 - Maestro decides: override (commit with note) or skip (ticket stays "in progress")

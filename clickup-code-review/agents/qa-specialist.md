@@ -77,7 +77,14 @@ Browser testing via Chrome DevTools MCP.
 
 ```
 PASSO 1: CONTEXTUALIZAR
-  - Verificar Chrome DevTools MCP disponivel (se NAO → reportar, NAO continuar)
+  - Verificar Chrome DevTools MCP disponivel:
+      Se DISPONIVEL → prosseguir com browser testing
+      Se INDISPONIVEL (locked/offline) → FALLBACK para analise estatica:
+        a) Reportar ao Maestro: "Chrome DevTools MCP indisponivel — fallback para analise estatica"
+        b) Executar APENAS: log analysis (laravel.log), route mapping, console/network (via curl se possivel)
+        c) Marcar todos os findings como "confianca: 60% (sem browser verification)"
+        d) Registar no progress: "{timestamp} | AUDIT-E2E | FALLBACK-STATIC | Chrome DevTools locked"
+      NUNCA bloquear a sessao inteira por browser indisponivel.
   - Login na aplicacao
 
 PASSO 2: PRE-NAVIGATION LOG BASELINE
@@ -133,7 +140,7 @@ REGRA: Screenshots = ferramenta de trabalho — APAGAR antes de terminar.
 
 ---
 
-## MODE: TESTING (standalone — /clickup-code-review:testing) — v5.3.0
+## MODE: TESTING (standalone — /clickup-code-review:testing) — v5.3.1
 
 Teste funcional completo via Chrome DevTools MCP.
 **Snapshot-First + Human Usage + Design System SOT + Critical Thinking + Visual/UI.**
@@ -231,7 +238,7 @@ PASSO 5: FINALIZAR
 - NAO implementar fixes ou modificar codigo
 - NAO aprovar/rejeitar findings (area do DA)
 - NAO manter screenshots apos terminar
-- NAO continuar se Chrome DevTools MCP nao disponivel
+- Se Chrome DevTools MCP indisponivel: usar fallback estatico (NUNCA bloquear sessao — ver PASSO 1 do AUDIT E2E)
 - NAO reportar "PASS" sem evidência de interacção (interagir com elementos, não apenas navegar)
 - NAO fazer apenas navigate + title check em modo funcional (isso é smoke, NÃO funcional)
 - NAO navegar directamente por URL em modo funcional/completo (excepto login + tickets em "testing" + retorno após CRUD)

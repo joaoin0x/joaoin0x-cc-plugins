@@ -101,6 +101,7 @@ PASSO 3: ANÁLISE SISTEMÁTICA (checklist MÍNIMO)
 PASSO 4: REPORTAR (para cada finding com confiança >= 80%)
   - Usar Standard Finding Format de pipeline-rules.md
   - SendMessage ao DA IMEDIATAMENTE (1 finding por mensagem, sem batching)
+  - Registar finding como SUBMITTED no progress. NUNCA re-enviar findings ja submetidos/processados pelo DA.
   - Append progress: "{timestamp} | AUDIT | finding {titulo} | SUBMITTED_TO_DA"
 
 PASSO 5: FINALIZAR
@@ -156,7 +157,7 @@ PASSO 4: APÓS APROVAÇÃO
 
 ---
 
-## MODE: PREPARE (Read-Ahead Queue — v5.3.0)
+## MODE: PREPARE (Read-Ahead Queue — v5.3.1)
 
 Quando Maestro spawna com "MODE: PREPARE":
 

@@ -71,7 +71,14 @@ You have OPERATIONS, not modes. Maestro tells you which to execute.
    Bash (single): echo "$RESPONSE" | grep -o '"name":"[^"]*"' | head -1
 
 2. VERIFY LIST ID: usar Read TOOL em MEMORY.md. Extrair "List ID:" value.
-3. VERIFY SHORTNAME: usar Read TOOL em MEMORY.md. Extrair "Shortname:" value.
+3. VERIFY SHORTNAME: usar Read TOOL em MEMORY.md. Extrair "Shortname:" value.\
+\
+4. PARENT RULE:\
+   NUNCA auto-herdar parent_task_id de MEMORY.md ou de sessoes anteriores.\
+   O parent e SEMPRE fornecido EXPLICITAMENTE pelo Maestro em cada operacao CREATE TICKET.\
+   Se Maestro nao especificar parent → default: SEM parent (ticket top-level na lista).\
+\
+5. STATUS CASE-MAPPING:
 
 4. STATUS CASE-MAPPING:
    Bash (single): RESPONSE=$(curl -s -X GET -H "Authorization: $CLICKUP_API_TOKEN" "https://api.clickup.com/api/v2/list/$LIST_ID")
@@ -89,7 +96,12 @@ Create local structure upfront so agents never create directories.
 **OBRIGATÓRIO: cada mkdir é um Bash call separado (single-statement = auto-aprovado).**
 
 ```
-REVIEW_DIR="{PROJECT_ROOT}/code-reviews/{main_task_id} - CC Review YYYY-MM-DD"
+SANITIZACAO DE NOMES (OBRIGATORIO para TODOS os directorios):
+  Substituir espacos por hifens: " " → "-"
+  Remover caracteres especiais: & → "", / → "", \ → ""
+  Resultado: apenas alfanumericos, hifens, pontos, e underscores
+
+REVIEW_DIR="{PROJECT_ROOT}/code-reviews/{main_task_id}-CC-Review-YYYY-MM-DD"
 
 Executar como calls Bash SEPARADOS (não juntar num script multi-linha):
   mkdir -p "{REVIEW_DIR}"
@@ -97,10 +109,11 @@ Executar como calls Bash SEPARADOS (não juntar num script multi-linha):
   mkdir -p "{REVIEW_DIR}/progress"
   mkdir -p "{REVIEW_DIR}/diffs"
   mkdir -p "{REVIEW_DIR}/qa"
-  mkdir -p "{REVIEW_DIR}/{area_task_id} - {AREA_NAME}"  (1 call por area)
+  mkdir -p "{REVIEW_DIR}/{area_task_id}-{SANITIZED_AREA_NAME}"  (1 call por area)
 
 Substituir {REVIEW_DIR} pelo path COMPLETO em CADA call (sem variáveis de shell).
-Exemplo: mkdir -p "/Users/.../fslv2/code-reviews/86c8wh0rj - CC Review 2026-03-17/findings"
+Exemplo: mkdir -p "/Users/.../fslv2/code-reviews/86c8wh0rj-CC-Review-2026-03-17/findings"
+Exemplo area: "Backend & Perf" → "Backend-Perf"
 
 Depois de criar dirs: usar Write TOOL (NUNCA bash/heredoc) para criar:
 
@@ -130,7 +143,7 @@ areas:
 New audit cycle initiated {YYYY-MM-DD}.
 ```
 
-**_area.md** (1 por area) — Write TOOL em "{REVIEW_DIR}/{AREA_TASK_ID} - {AREA_NAME}/_area.md" com:
+**_area.md** (1 por area) — Write TOOL em "{REVIEW_DIR}/{AREA_TASK_ID}-{SANITIZED_AREA_NAME}/_area.md" com:
 ```
 ---
 task_id: {AREA_TASK_ID}
