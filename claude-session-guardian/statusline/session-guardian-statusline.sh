@@ -1,6 +1,6 @@
 #!/bin/bash
 # claude-session-guardian — Statusline writer
-# Version: 1.0.1
+# Version: 1.0.2
 #
 # PURPOSE: Receives Claude Code statusline JSON on stdin, extracts rate_limits,
 # persists them atomically to <CLAUDE_BASE>/session-guardian/rate-state.json so
@@ -45,10 +45,12 @@ MODEL=$(printf '%s' "$INPUT" | jq -r '.model.display_name // .model.name // "Cla
 
 # ── Extract rate_limits with defensive parsing ───────────────────────────────
 # Payload shape verified at runtime (V4 validation). Fall back gracefully.
+# resets_at observed in two shapes: ISO-8601 string ("2026-04-24T19:30:00Z")
+# OR Unix epoch (1777082400). Script accepts both — see normalize_resets_at.
 PCT_5H=$(printf '%s' "$INPUT" | jq -r '.rate_limits.five_hour.used_percentage // .rate_limits.fiveHour.used_percentage // empty' 2>/dev/null)
-RESETS_5H=$(printf '%s' "$INPUT" | jq -r '.rate_limits.five_hour.resets_at // .rate_limits.fiveHour.resets_at // empty' 2>/dev/null)
+RESETS_5H_RAW=$(printf '%s' "$INPUT" | jq -r '.rate_limits.five_hour.resets_at // .rate_limits.fiveHour.resets_at // empty' 2>/dev/null)
 PCT_7D=$(printf '%s' "$INPUT" | jq -r '.rate_limits.seven_day.used_percentage // .rate_limits.sevenDay.used_percentage // empty' 2>/dev/null)
-RESETS_7D=$(printf '%s' "$INPUT" | jq -r '.rate_limits.seven_day.resets_at // .rate_limits.sevenDay.resets_at // empty' 2>/dev/null)
+RESETS_7D_RAW=$(printf '%s' "$INPUT" | jq -r '.rate_limits.seven_day.resets_at // .rate_limits.sevenDay.resets_at // empty' 2>/dev/null)
 
 # ── Type validation ──────────────────────────────────────────────────────────
 is_valid_pct() {
@@ -57,14 +59,39 @@ is_valid_pct() {
 is_valid_iso8601() {
     [ -n "$1" ] && [[ "$1" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2} ]]
 }
+# Unix epoch in seconds: 9-11 digits covers 1973-04-26 to 5138-11-16, i.e. any
+# realistic resets_at value. We exclude shorter ints to avoid coincidence with
+# malformed input, and longer ints (milliseconds) which would need /1000.
+is_valid_epoch() {
+    [ -n "$1" ] && [[ "$1" =~ ^[0-9]{9,11}$ ]]
+}
+# Convert Unix epoch (seconds) to ISO-8601 UTC. BSD date (macOS) uses -r;
+# GNU date (Linux) uses -d "@…". Fall through to whichever works.
+epoch_to_iso() {
+    date -u -r "$1" +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null \
+        || date -u -d "@$1" +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null
+}
+# Returns canonical ISO-8601 from either ISO-8601 or epoch input. Empty if invalid.
+normalize_resets_at() {
+    local v="$1"
+    if is_valid_iso8601 "$v"; then
+        printf '%s' "$v"
+    elif is_valid_epoch "$v"; then
+        epoch_to_iso "$v"
+    fi
+}
+
+# Normalize resets_at fields (accept both ISO and Unix epoch)
+RESETS_5H=$(normalize_resets_at "$RESETS_5H_RAW")
+RESETS_7D=$(normalize_resets_at "$RESETS_7D_RAW")
 
 VALID=1
 if [ -n "$PCT_5H" ] && ! is_valid_pct "$PCT_5H"; then
     log_error "invalid used_percentage_5h: $PCT_5H"
     VALID=0
 fi
-if [ -n "$RESETS_5H" ] && ! is_valid_iso8601 "$RESETS_5H"; then
-    log_error "invalid resets_at_5h: $RESETS_5H"
+if [ -n "$RESETS_5H_RAW" ] && [ -z "$RESETS_5H" ]; then
+    log_error "invalid resets_at_5h (not ISO-8601 nor epoch): $RESETS_5H_RAW"
     VALID=0
 fi
 
