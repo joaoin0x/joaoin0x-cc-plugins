@@ -377,20 +377,20 @@ The `Bash(curl *)` permission patterns only match single-command Bash calls. Cli
 
 The hook is a **template** bundled with the plugin at `hooks/clickup-auto-approve.sh`. It must be **installed** to the user's hooks directory with `__SETTINGS_PATH__` replaced — this is NOT a plugin-bundled hook (unlike `hooks/hooks.json`).
 
-**Three complementary hook systems (v5.3.1):**
+**Three complementary hook systems (v5.4.0):**
 - `hooks/hooks.json` (plugin-bundled, auto-loaded): Agent/SendMessage/Write/Edit/Read + Bash matchers for orchestration, file ops, and safe git/test commands
 - `hooks/bash-safe-auto-approve.sh` (bundled, loaded via hooks.json): Bash auto-approve for git read-only ops, git staging, commits, test runners — deny-list first, whitelist second
 - `clickup-auto-approve.sh` (installed via setup wizard): Bash matcher for curl commands to ClickUp API — reads user's `settings.json` permissions dynamically
 
 **All three are needed.** The hooks.json handles tool-level + git/test auto-approval. The auto-approve script handles Bash(curl) auto-approval with user-configured permission patterns.
 
-**Version update (v5.3.1):** If the installed hook is outdated (from a previous plugin version), Step 6.0 detects the version mismatch and offers to re-install from the latest template.
+**Version update (v5.4.0):** If the installed hook is outdated (from a previous plugin version), Step 6.0 detects the version mismatch and offers to re-install from the latest template.
 
 **IMPORTANT:** The hook reads permissions from `settings.json` — it only approves operations the user authorized in Step 5. Anything not in the `permissions.allow` list still requires manual approval.
 
 **IMPORTANT:** settings.json hooks are loaded dynamically — no session restart needed.
 
-### 6.0 Hook version check (v5.3.1)
+### 6.0 Hook version check (v5.4.0)
 
 Check if an existing hook needs updating:
 

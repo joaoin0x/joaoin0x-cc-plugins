@@ -1,4 +1,4 @@
-# Testing Protocol Reference (v5.3.1)
+# Testing Protocol Reference (v5.4.0)
 
 Technical reference for the testing skill. The Maestro, QA Specialist, DA, and ClickUp Manager use this document for Chrome DevTools MCP methodology, login handling, screenshot rules, and QA verdict routing.
 
@@ -46,7 +46,7 @@ Technical reference for the testing skill. The Maestro, QA Specialist, DA, and C
 
 ---
 
-## Snapshot-First Methodology (OBRIGATÓRIO — v5.3.1)
+## Snapshot-First Methodology (OBRIGATÓRIO — v5.4.0)
 
 ### Princípio
 
@@ -156,7 +156,7 @@ Se o QA só faz navigate + title em modo funcional → profundidade INSUFICIENTE
 
 ---
 
-## Human-First Usage & Critical Testing (OBRIGATÓRIO — v5.3.1)
+## Human-First Usage & Critical Testing (OBRIGATÓRIO — v5.4.0)
 
 ### Princípio
 
@@ -199,7 +199,7 @@ FASE 3: TESTE DAS PÁGINAS (ordem humana)
   Testar páginas pela ordem de descoberta na UI (não por lista de rotas).
   Para páginas órfãs: reportar como finding, testar de qualquer forma via URL.
 
-FASE 4: PENSAMENTO CRÍTICO & STRESS TEST (v5.3.1)
+FASE 4: PENSAMENTO CRÍTICO & STRESS TEST (v5.4.0)
   O QA pensa como utilizador real COM conhecimentos de dev/QA:
 
   4.1 EDGE CASES CRIATIVOS
@@ -263,7 +263,7 @@ Opção B: Remover rota se a funcionalidade não é necessária.
 
 ---
 
-## Design System — Source of Truth (Level 2 — v5.3.1)
+## Design System — Source of Truth (Level 2 — v5.4.0)
 
 ### Princípio
 
@@ -436,7 +436,7 @@ Alinhar {elemento} com o design system ({baseline_pattern}).
 
 ---
 
-## Visual/UI Quality Verification (Level 2 — v5.3.1)
+## Visual/UI Quality Verification (Level 2 — v5.4.0)
 
 ### Princípio
 
@@ -1055,7 +1055,7 @@ Login: {TEST_EMAIL} / {TEST_PASSWORD} (from credentials.local.md)
 
 ---
 
-## Verificação por Tipo de Ticket (v5.3.1)
+## Verificação por Tipo de Ticket (v5.4.0)
 
 ### Verificação COMPLETA via browser (QA testa tudo funcionalmente)
 

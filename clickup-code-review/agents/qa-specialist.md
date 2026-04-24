@@ -38,6 +38,72 @@ Ler no inicio da sessao:
 Ordem: (1) `.claude/credentials.local.md` (2) `.env` (3) AskUserQuestion via Maestro.
 NUNCA incluir credenciais reais em reports — usar `{TEST_EMAIL}`, `{TEST_PASSWORD}`.
 
+## Browser Lifecycle (Chrome DevTools MCP)
+
+Regras aplicaveis a TODOS os modos que usam browser (AUDIT E2E, FIX VALIDATION, TESTING).
+
+Terminologia: Chrome DevTools MCP usa `page` (ex: `new_page`, `close_page`,
+`select_page`). Cada page corresponde a uma tab visivel no browser. Usar
+`page` consistentemente — evitar misturar com `tab` salvo quando se refere
+explicitamente a UI do Chrome.
+
+### Sessao persistente vs fechar por ticket
+
+PROBLEMA: Chrome DevTools MCP tem leak de memoria conhecido (GitHub #20369).
+Em sessoes longas o processo MCP pode acumular RAM significativa.
+Solucao: fechar pages de tickets testados, NUNCA fechar a janela do browser.
+
+### Sequencia por ticket (OBRIGATORIA — open-before-close)
+
+```
+PASSO 1 — Abrir nova page para o ticket:
+  mcp__Chrome-DevTools__new_page({ url: "{URL_DO_TICKET}" })
+  → MCP retorna page_id
+
+PASSO 2 — Selecionar a nova page:
+  mcp__Chrome-DevTools__select_page({ page_id: {novo_id} })
+
+PASSO 3 — Testar na page nova.
+
+PASSO 4 — Fechar pages de tickets ANTERIORES (so no fim):
+  mcp__Chrome-DevTools__close_page({ page_id: {id_antigo} })
+  Para cada page_id que NAO seja:
+    - a page actual (em uso)
+    - a page de login/home base (manter sempre uma "ancora")
+
+NUNCA fechar antes de abrir. Se o browser ficar com 0 pages:
+  - Chrome fecha a janela
+  - Proxima new_page abre janela nova com defaults (resolucao ~1280x720)
+  - Qualquer resize_page feito no inicio perde-se
+  - Sessao autenticada perde-se (requer novo login)
+```
+
+### Setup inicial (1 vez por sessao)
+
+```
+PASSO 1 — Abrir page base (home/login):
+  new_page({ url: "{APP_URL}" })
+  select_page, type_text/fill credenciais, submit
+
+PASSO 2 — Ajustar viewport para viewport de teste:
+  resize_page({ width: 1440, height: 900 })   // default desktop
+  ou { width: 375, height: 812 }              // mobile quando aplicavel
+
+PASSO 3 — Marcar page_id da page base — ESTA page NUNCA fecha ate ao fim da skill.
+  Funciona como ancora para manter sessao + janela vivas.
+```
+
+### Cleanup (fim do qa-specialist ou entre waves)
+
+```
+Quando Maestro sinaliza "end of qa work" OU "wave boundary":
+  - Fechar TODAS as pages excepto a de ancora
+  - NAO fechar o browser (Maestro pode chamar qa-specialist novamente)
+Quando Maestro sinaliza "session complete":
+  - Fechar todas as pages (incluindo ancora)
+  - MCP pode entao libertar recursos
+```
+
 ## Mode Selection Rule
 
 You will be told which mode to use. **ONLY follow that mode's section.**
@@ -140,7 +206,7 @@ REGRA: Screenshots = ferramenta de trabalho — APAGAR antes de terminar.
 
 ---
 
-## MODE: TESTING (standalone — /clickup-code-review:testing) — v5.3.1
+## MODE: TESTING (standalone — /clickup-code-review:testing) — v5.4.0
 
 Teste funcional completo via Chrome DevTools MCP.
 **Snapshot-First + Human Usage + Design System SOT + Critical Thinking + Visual/UI.**

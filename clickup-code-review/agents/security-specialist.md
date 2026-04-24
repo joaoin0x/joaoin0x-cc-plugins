@@ -6,7 +6,7 @@ description: >
   <example>Context: Code review audit phase needs security analysis. user: "audit the codebase for security vulnerabilities" assistant: "I'll use the security-specialist agent to systematically map the attack surface and identify real vulnerabilities"</example>
   <example>Context: Security ticket needs planning before fix. user: "plan the fix for this IDOR vulnerability" assistant: "I'll use the security-specialist agent in PLANNING mode to validate the finding and propose 2 approaches"</example>
   <example>Context: Security fix approved in planning, ready to implement. user: "implement the planned fix for this auth bypass" assistant: "I'll use the security-specialist agent in FIX mode to implement the fix and send the diff to DA for code review"</example>
-model: opus
+model: claude-opus-4-6
 color: magenta
 tools: [Read, Grep, Glob, Bash, Write, Edit, SendMessage]
 ---
@@ -132,7 +132,7 @@ Seguir protocolo em `skills/shared/planning-protocol.md`.
 
 ---
 
-## MODE: PREPARE (Read-Ahead Queue — v5.3.1)
+## MODE: PREPARE (Read-Ahead Queue — v5.4.0)
 
 Quando Maestro spawna com "MODE: PREPARE":
 

@@ -6,7 +6,7 @@ description: >
   <example>Context: Planning phase — specialist submitted a plan for a security fix. user: "validate this plan for cross-area dependencies" assistant: "I'll use the investigation-specialist agent to re-read the code with fresh eyes and assess cross-area impact"</example>
   <example>Context: All plans validated — need wave organisation. user: "organise all validated plans into execution waves" assistant: "I'll use the investigation-specialist agent for meta-organisation: conflict detection, consolidation analysis, and wave planning"</example>
   <example>Context: Specialist's fix touches a shared service. user: "check if this fix has cross-area dependencies" assistant: "I'll use the investigation-specialist agent to trace imports and detect who else uses this service"</example>
-model: opus
+model: claude-opus-4-6[1m]
 color: cyan
 tools: [Read, Grep, Glob, Bash, SendMessage]
 ---

@@ -7,7 +7,7 @@ description: >
   <example>Context: Multiple agents submitted security and performance findings. user: "review these findings as devil's advocate" assistant: "I'll use the devils-advocate agent to debate each finding with the reviewers"</example>
   <example>Context: A specialist staged a fix and needs code review. user: "review this diff against the planned fix" assistant: "I'll use the devils-advocate agent in CODE-REVIEW mode to verify the fix"</example>
   <example>Context: QA specialist tested a fix and needs validation. user: "validate the QA test evidence for this ticket" assistant: "I'll use the devils-advocate agent in QA-REVIEW mode to verify test thoroughness"</example>
-model: opus
+model: claude-opus-4-6[1m]
 color: red
 tools: [Read, Grep, Glob, Bash, SendMessage]
 ---
@@ -212,7 +212,7 @@ STEP 4: EMIT VERDICT
 - **Missing:** {what failed} | **Required:** {actions}
 ```
 
-### Security/Performance Tickets: Combined QA-REVIEW + CODE-REVIEW (v5.3.1)
+### Security/Performance Tickets: Combined QA-REVIEW + CODE-REVIEW (v5.4.0)
 
 For tickets with area **Security** or **Backend/Performance**:
 

@@ -67,24 +67,52 @@ You have OPERATIONS, not modes. Maestro tells you which to execute.
    Bash (single): printenv CLICKUP_API_TOKEN
    → Se vazio: usar Read TOOL em SETTINGS_PATH, extrair env.CLICKUP_API_TOKEN
    → Validar: começa com pk_?
-   Bash (single): RESPONSE=$(curl -s -X GET -H "Authorization: $CLICKUP_API_TOKEN" "https://api.clickup.com/api/v2/team")
-   Bash (single): echo "$RESPONSE" | grep -o '"name":"[^"]*"' | head -1
+
+1a. CACHE LOOKUP (Workspace/Team IDs):
+   Cache path: ${CLAUDE_PLUGIN_DATA}/workspace-cache.md
+   Persiste entre sessoes e sobrevive a plugin updates.
+   Formato:
+     ---
+     team_id: {ID}
+     workspace_name: {Name}
+     last_validated: {YYYY-MM-DDTHH:MM:SS}
+     ---
+
+   PASSO 1a.1 — Tentar Read TOOL em "${CLAUDE_PLUGIN_DATA}/workspace-cache.md"
+     Se existe → SKIP API call (team_id do ClickUp e imutavel apos criacao)
+     Se NAO existe → continuar PASSO 1a.2
+
+   PASSO 1a.2 — Validar via API (fallback / primeira execucao):
+     Bash (single): RESPONSE=$(curl -s -X GET -H "Authorization: $CLICKUP_API_TOKEN" "https://api.clickup.com/api/v2/team")
+     Bash (single): echo "$RESPONSE" | grep -o '"name":"[^"]*"' | head -1
+     Se OK: Write TOOL em "${CLAUDE_PLUGIN_DATA}/workspace-cache.md" com team_id + name + timestamp
+
+   PASSO 1a.3 — INVALIDACAO:
+     Unico cenario onde cache fica stale: token revogado/invalido ou
+     migracao de workspace. Ambos manifestam-se como 401/403 na proxima
+     API call. Se qualquer operacao posterior devolver 401/403:
+       rm -f "${CLAUDE_PLUGIN_DATA}/workspace-cache.md"
+       Re-executar PASSO 1a.2.
+     Nao ha TTL — TTL fixo nao tem racional porque team_id e imutavel.
+
+   NOTA: ${CLAUDE_PLUGIN_DATA} e per-plugin (nao per-project). Cache de
+   IDs do ClickUp e o mesmo em todos os projectos do utilizador.
+   NAO guardar aqui: guard markers, state de review (esses sao per-project
+   em ${CLAUDE_PROJECT_DIR}/code-reviews/).
 
 2. VERIFY LIST ID: usar Read TOOL em MEMORY.md. Extrair "List ID:" value.
-3. VERIFY SHORTNAME: usar Read TOOL em MEMORY.md. Extrair "Shortname:" value.\
-\
-4. PARENT RULE:\
-   NUNCA auto-herdar parent_task_id de MEMORY.md ou de sessoes anteriores.\
-   O parent e SEMPRE fornecido EXPLICITAMENTE pelo Maestro em cada operacao CREATE TICKET.\
-   Se Maestro nao especificar parent → default: SEM parent (ticket top-level na lista).\
-\
-5. STATUS CASE-MAPPING:
+3. VERIFY SHORTNAME: usar Read TOOL em MEMORY.md. Extrair "Shortname:" value.
 
-4. STATUS CASE-MAPPING:
+4. PARENT RULE:
+   NUNCA auto-herdar parent_task_id de MEMORY.md ou de sessoes anteriores.
+   O parent e SEMPRE fornecido EXPLICITAMENTE pelo Maestro em cada operacao CREATE TICKET.
+   Se Maestro nao especificar parent → default: SEM parent (ticket top-level na lista).
+
+5. STATUS CASE-MAPPING:
    Bash (single): RESPONSE=$(curl -s -X GET -H "Authorization: $CLICKUP_API_TOKEN" "https://api.clickup.com/api/v2/list/$LIST_ID")
    Bash (single): echo "$RESPONSE" | grep -oE '"status":"[^"]*"' | cut -d'"' -f4 | sort -u
 
-5. GITIGNORE CHECK:
+6. GITIGNORE CHECK:
    Bash (single): grep -q 'code-reviews/' .gitignore 2>/dev/null || echo 'MISSING'
    Se MISSING: Bash (single): echo 'code-reviews/' >> .gitignore
 ```

@@ -1,4 +1,4 @@
-# Planning Skill — `/clickup-code-review:planning` (v5.3.1)
+# Planning Skill — `/clickup-code-review:planning` (v5.4.0)
 
 Triage and validate existing code review tickets via decentralised planning. Each specialist plans their own area, validated by DA + Investigation (triangle validation). Investigation does meta-organisation (waves, dependencies, ticket consolidation). ClickUp Manager handles ALL API operations.
 

@@ -157,7 +157,7 @@ PASSO 4: APÓS APROVAÇÃO
 
 ---
 
-## MODE: PREPARE (Read-Ahead Queue — v5.3.1)
+## MODE: PREPARE (Read-Ahead Queue — v5.4.0)
 
 Quando Maestro spawna com "MODE: PREPARE":
 
