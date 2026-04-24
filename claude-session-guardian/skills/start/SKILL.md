@@ -40,10 +40,11 @@ Isto entrega ao skill /loop a instrução de correr `/session-guardian` em dynam
 
 ### PASSO 4 — Confirmar ao utilizador
 
-Ler `~/.claude/session-guardian/rate-state.json` (se existir) para reportar estado actual:
+Ler `$CLAUDE_CONFIG_DIR/session-guardian/rate-state.json` (ou `~/.claude/session-guardian/rate-state.json` se `CLAUDE_CONFIG_DIR` não definido) para reportar estado actual:
 
 ```
-Read TOOL: ~/.claude/session-guardian/rate-state.json
+CLAUDE_BASE = ${CLAUDE_CONFIG_DIR:-$HOME/.claude}
+Read TOOL: $CLAUDE_BASE/session-guardian/rate-state.json
   Se existe:
     Extrair used_percentage_5h e resets_at_5h.
     Emitir: "[session-guardian] Loop arrancado. Plafond 5h actual: ${pct}%. Reset em ${resets_at}."

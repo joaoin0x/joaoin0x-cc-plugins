@@ -1,6 +1,6 @@
 #!/bin/bash
 # claude-session-guardian — SessionStart hook
-# Version: 1.0.0
+# Version: 1.0.1
 #
 # PURPOSE: When a new Claude Code session starts, inject additionalContext that
 # asks the model to invoke /session-guardian:start as its first action. Also
@@ -17,7 +17,8 @@
 
 set -u
 
-STATE_DIR="$HOME/.claude/session-guardian"
+CLAUDE_BASE="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+STATE_DIR="$CLAUDE_BASE/session-guardian"
 CHECKPOINTS_DIR="$STATE_DIR/checkpoints"
 
 # Ensure base dirs exist

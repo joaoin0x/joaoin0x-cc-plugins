@@ -31,7 +31,7 @@
     {
       "name": "claude-session-guardian",
       "description": "Monitor Claude Code 5-hour rate limit window and orchestrate cooperative pause/resume. Graduated warnings at 70%/82%, automatic pause at 90% with checkpoint + CronCreate resume after reset.",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "source": "./claude-session-guardian",
       "category": "productivity",
       "author": {

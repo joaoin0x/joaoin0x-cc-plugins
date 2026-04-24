@@ -41,7 +41,7 @@ O setup:
 - Descobre o path absoluto do statusline script
 - Faz backup atómico do teu `settings.json` para `settings.json.pre-session-guardian`
 - Actualiza `statusLine.command` para o script do plugin
-- Cria `~/.claude/session-guardian/checkpoints/`
+- Cria `$CLAUDE_CONFIG_DIR/session-guardian/checkpoints/`
 - Valida o JSON resultante (restaura backup se inválido)
 
 ### 3. Reload e nova sessão
@@ -81,7 +81,7 @@ Opus 4.7 · 5h 67% (reset 19:30) · 7d 23%
 
 Quando o HARD STOP dispara:
 1. Todos os subagents activos recebem `SendMessage` a pedir "Pausa ASAP"
-2. O estado do workflow é persistido em `~/.claude/session-guardian/checkpoints/<session_id>/checkpoint.md`
+2. O estado do workflow é persistido em `$CLAUDE_CONFIG_DIR/session-guardian/checkpoints/<session_id>/checkpoint.md`
 3. Um cron one-shot é agendado para `resets_at + 5min`
 4. **Manter o terminal aberto** — crons são session-scoped. Se fechares, a retoma não acontece.
 
@@ -102,9 +102,9 @@ Ao retomar, o prompt defensivo força o modelo a:
 ## Privacidade e segurança
 
 - O `rate-state.json` contém apenas percentagens e timestamps — sem conteúdo sensível.
-- O checkpoint.md contém nomes de subagents e descrição livre do workflow — pode conter nomes de ficheiros do teu projecto. É escrito em `~/.claude/session-guardian/` (fora do projecto) com permissões 0600.
+- O checkpoint.md contém nomes de subagents e descrição livre do workflow — pode conter nomes de ficheiros do teu projecto. É escrito em `$CLAUDE_CONFIG_DIR/session-guardian/` (fora do projecto) com permissões 0600.
 - Stop skill exige confirmação explícita (`AskUserQuestion`) — defesa contra prompt injection.
-- Audit log de paragens em `~/.claude/session-guardian/audit.log`.
+- Audit log de paragens em `$CLAUDE_CONFIG_DIR/session-guardian/audit.log`.
 - Statusline rejeita escritas se o path alvo for symlink.
 
 ## Desinstalar
@@ -113,7 +113,7 @@ Ao retomar, o prompt defensivo força o modelo a:
 /session-guardian:uninstall
 ```
 
-Restaura `settings.json` a partir do backup. Opcionalmente apaga `~/.claude/session-guardian/` (checkpoints, logs). Não remove os ficheiros do plugin — para isso usa o menu `/plugin`.
+Restaura `settings.json` a partir do backup. Opcionalmente apaga `$CLAUDE_CONFIG_DIR/session-guardian/` (checkpoints, logs). Não remove os ficheiros do plugin — para isso usa o menu `/plugin`.
 
 ## Licença
 

@@ -12,8 +12,11 @@ Tu és o guardian da janela de 5 horas do Claude Code. A tua missão é **monito
 ## Variáveis de ambiente e paths
 
 ```
-STATE_DIR       = ~/.claude/session-guardian
-RATE_STATE      = $STATE_DIR/rate-state.json       (global, escrito pelo statusline)
+CLAUDE_BASE     = ${CLAUDE_CONFIG_DIR:-$HOME/.claude}
+                  (respeita CLDP/CLDW/custom installations — state convive
+                   com settings.json em vez de ir sempre para ~/.claude)
+STATE_DIR       = $CLAUDE_BASE/session-guardian
+RATE_STATE      = $STATE_DIR/rate-state.json       (escrito pelo statusline)
 CHECKPOINTS_DIR = $STATE_DIR/checkpoints
 SESSION_ID      = ${CLAUDE_SESSION_ID:-<hash cwd+PID fallback>}
 SESSION_DIR     = $STATE_DIR/$SESSION_ID            (per-session state)
@@ -232,7 +235,7 @@ A janela de 5 horas do Claude Code foi renovada. Antes da pausa havia um workflo
 PROCEDIMENTO OBRIGATORIO (nao saltes passos — executa-os por ordem):
 
 1. Read TOOL: {CHECKPOINT_PATH}
-   (Ex: ~/.claude/session-guardian/checkpoints/{SESSION_ID}/checkpoint.md)
+   (Ex: ${CLAUDE_CONFIG_DIR:-$HOME/.claude}/session-guardian/checkpoints/{SESSION_ID}/checkpoint.md)
 
 2. Interpreta o checkpoint:
    - Que workflow/skill estava activa (campo workflow_active)?

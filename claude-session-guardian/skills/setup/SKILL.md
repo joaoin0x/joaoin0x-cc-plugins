@@ -13,7 +13,7 @@ Configuração automática do statusline após instalar o plugin.
 - Actualizar `statusLine.command` no `settings.json` do utilizador para apontar para esse path
 - Backup atómico antes de qualquer mutação
 - Validação JSON do resultado (restaura backup se inválido)
-- Criar directórios base em `~/.claude/session-guardian/`
+- Criar directórios base em `$CLAUDE_CONFIG_DIR/session-guardian/` (ou `~/.claude/session-guardian/` se `CLAUDE_CONFIG_DIR` não estiver definido). State convive com a config — instalações CLDP/CLDW ficam isoladas.
 
 ## Procedimento
 
@@ -93,9 +93,12 @@ Bash (single): jq -r '.statusLine.command' "$SETTINGS_PATH"
 
 ### PASSO 7 — Criar directórios base
 
+Usar a mesma `CLAUDE_CONFIG_DIR` detectada no PASSO 3 (respeitar a instalação activa — CLDP, CLDW, ou default):
+
 ```
-Bash (single): mkdir -p "$HOME/.claude/session-guardian/checkpoints"
-Bash (single): chmod 0700 "$HOME/.claude/session-guardian"
+Bash (single): CLAUDE_BASE="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+Bash (single): mkdir -p "$CLAUDE_BASE/session-guardian/checkpoints"
+Bash (single): chmod 0700 "$CLAUDE_BASE/session-guardian"
 ```
 
 ### PASSO 8 — Confirmar ao utilizador

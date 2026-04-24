@@ -16,8 +16,8 @@ AskUserQuestion TOOL:
   question: "Remover configuração do session-guardian? Vai restaurar settings.json do backup pré-setup. Queres também apagar state local (checkpoints, logs)?"
   header: "Uninstall"
   options: [
-    { label: "Restaurar settings + apagar state", description: "Remoção completa: settings.json revertido + ~/.claude/session-guardian/ apagado" },
-    { label: "Apenas restaurar settings", description: "Reverte settings.json mas mantém checkpoints/logs em ~/.claude/session-guardian/" },
+    { label: "Restaurar settings + apagar state", description: "Remoção completa: settings.json revertido + $CLAUDE_BASE/session-guardian/ apagado" },
+    { label: "Apenas restaurar settings", description: "Reverte settings.json mas mantém checkpoints/logs em $CLAUDE_BASE/session-guardian/" },
     { label: "Cancelar", description: "Não fazer nada" }
   ]
   multiSelect: false
@@ -62,8 +62,9 @@ Bash (single): rm -f "$BACKUP_PATH"
 Se resposta == "Restaurar settings + apagar state":
 
 ```
-Bash (single): rm -rf "$HOME/.claude/session-guardian"
-  (checkpoints, logs, flags — tudo.)
+Bash (single): CLAUDE_BASE="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+Bash (single): rm -rf "$CLAUDE_BASE/session-guardian"
+  (checkpoints, logs, flags — tudo do state directory que coabita com settings.json.)
 ```
 
 ### PASSO 5 — Cancelar qualquer cron activo
@@ -85,7 +86,7 @@ Emitir resumo:
 "✓ Uninstall session-guardian completo.
 
   settings.json restaurado a partir de: $BACKUP_PATH
-  State apagado: <sim/não> ($HOME/.claude/session-guardian/)
+  State apagado: <sim/não> ($CLAUDE_BASE/session-guardian/)
   Crons cancelados: <N>
 
   PRÓXIMOS PASSOS:

@@ -1,11 +1,16 @@
 #!/bin/bash
 # claude-session-guardian — Statusline writer
-# Version: 1.0.0
+# Version: 1.0.1
 #
 # PURPOSE: Receives Claude Code statusline JSON on stdin, extracts rate_limits,
-# persists them atomically to ~/.claude/session-guardian/rate-state.json so the
-# session-guardian skill can read them between turns. Emits a minimal statusline
-# to stdout for display.
+# persists them atomically to <CLAUDE_BASE>/session-guardian/rate-state.json so
+# the session-guardian skill can read them between turns. Emits a minimal
+# statusline to stdout for display.
+#
+# CLAUDE_BASE is $CLAUDE_CONFIG_DIR if set (CLDP, CLDW, or other custom Claude
+# Code installations), otherwise $HOME/.claude. This ensures state lives next
+# to the user's settings.json regardless of installation layout, and that
+# parallel installations (e.g. CLDP + CLDW) keep their state isolated.
 #
 # SECURITY:
 # - Symlink rejection (defence against attack redirecting writes to sensitive
@@ -21,7 +26,8 @@
 
 set -u
 
-STATE_DIR="$HOME/.claude/session-guardian"
+CLAUDE_BASE="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+STATE_DIR="$CLAUDE_BASE/session-guardian"
 STATE_FILE="$STATE_DIR/rate-state.json"
 TMP_FILE="$STATE_DIR/rate-state.json.tmp.$$"
 LOG_FILE="$STATE_DIR/statusline-errors.log"

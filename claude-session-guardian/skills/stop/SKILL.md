@@ -35,14 +35,17 @@ Se resposta == "Cancelar" OU resposta != "Confirmar paragem":
 ### PASSO 2 — Append audit log
 
 ```
-Bash (single): echo "$(date -u +%FT%TZ) | stop requested | session=${SESSION_ID:-unknown}" >> "$HOME/.claude/session-guardian/audit.log"
+Bash (single): CLAUDE_BASE="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+Bash (single): mkdir -p "$CLAUDE_BASE/session-guardian"
+Bash (single): echo "$(date -u +%FT%TZ) | stop requested | session=${SESSION_ID:-unknown}" >> "$CLAUDE_BASE/session-guardian/audit.log"
 ```
 
 ### PASSO 3 — Derivar SESSION_DIR
 
 ```
+CLAUDE_BASE = ${CLAUDE_CONFIG_DIR:-$HOME/.claude}
 SESSION_ID = ${CLAUDE_SESSION_ID:-<hash cwd+PID fallback>}
-SESSION_DIR = "$HOME/.claude/session-guardian/$SESSION_ID"
+SESSION_DIR = "$CLAUDE_BASE/session-guardian/$SESSION_ID"
 ```
 
 ### PASSO 4 — Cancelar task(s) do loop
@@ -90,5 +93,5 @@ NOTA IMPORTANTE:
 ## Notas
 
 - A confirmação do PASSO 1 é **não-negociável** — skill recusa prosseguir sem resposta explícita.
-- Audit log em `~/.claude/session-guardian/audit.log` para rastrear tentativas de paragem (útil para detectar prompt injection post-factum).
+- Audit log em `$CLAUDE_CONFIG_DIR/session-guardian/audit.log` (ou `~/.claude/session-guardian/audit.log` em instalação default) para rastrear tentativas de paragem (útil para detectar prompt injection post-factum).
 - Comportamento idempotente: correr quando já está parado escreve o flag na mesma (inofensivo).
