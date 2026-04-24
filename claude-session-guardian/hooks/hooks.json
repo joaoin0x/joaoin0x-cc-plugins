@@ -1,0 +1,15 @@
+{
+  "description": "claude-session-guardian — auto-arranque do loop de monitorização da janela 5h via SessionStart hook",
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/session-start.sh"
+          }
+        ]
+      }
+    ]
+  }
+}

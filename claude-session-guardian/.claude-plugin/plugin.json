@@ -1,0 +1,18 @@
+{
+  "$schema": "https://anthropic.com/claude-code/plugin.schema.json",
+  "name": "claude-session-guardian",
+  "version": "1.0.0",
+  "description": "Monitor Claude Code's 5-hour rate limit window and orchestrate cooperative pause/resume when threshold reached. Pauses subagents, writes checkpoint, schedules automatic resume via CronCreate.",
+  "author": {
+    "name": "joaoin0x",
+    "email": "joaodavidantunes@gmail.com"
+  },
+  "category": "productivity",
+  "keywords": [
+    "rate-limit",
+    "session-management",
+    "pause-resume",
+    "multi-agent",
+    "monitoring"
+  ]
+}
