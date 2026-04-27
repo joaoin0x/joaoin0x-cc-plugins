@@ -1,6 +1,6 @@
 #!/bin/bash
 # claude-session-guardian — Statusline writer
-# Version: 1.0.6
+# Version: 1.0.7
 #
 # PURPOSE: Receives Claude Code statusline JSON on stdin, extracts rate_limits,
 # persists them atomically to <CLAUDE_BASE>/session-guardian/rate-state.json so
@@ -67,6 +67,23 @@ round_pct() {
 }
 is_valid_iso8601() {
     [ -n "$1" ] && [[ "$1" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2} ]]
+}
+# Convert ISO-8601 UTC ("2026-04-28T02:30:00Z") to local HH:MM ("03:30" in
+# Lisbon during WEST). Output empty if parsing fails — caller falls back to
+# UTC slice. Tries BSD date (macOS) first, GNU date second.
+iso_utc_to_local_hhmm() {
+    local iso="$1"
+    [ -n "$iso" ] || return 1
+    local utc_str="${iso%Z}"
+    local epoch
+    # BSD (macOS): -j parses without setting clock, -u says input is UTC,
+    # -f gives format. Output epoch, then format with -r in local TZ.
+    epoch=$(date -j -u -f "%Y-%m-%dT%H:%M:%S" "$utc_str" "+%s" 2>/dev/null)
+    if [ -n "$epoch" ]; then
+        date -r "$epoch" "+%H:%M" 2>/dev/null && return 0
+    fi
+    # GNU (Linux): -d parses native ISO with Z, then "+%H:%M" gives local
+    date -d "$iso" "+%H:%M" 2>/dev/null
 }
 # Unix epoch in seconds: 9-11 digits covers 1973-04-26 to 5138-11-16, i.e. any
 # realistic resets_at value. We exclude shorter ints to avoid coincidence with
@@ -175,8 +192,15 @@ LINE="$MODEL"
 if is_valid_pct "$PCT_5H"; then
     RESET_SHORT=""
     if is_valid_iso8601 "$RESETS_5H"; then
-        # Extract HH:MM — portable across BSD/GNU date
-        RESET_SHORT=" (reset ${RESETS_5H:11:5})"
+        # Display reset in LOCAL time (not UTC) so the user sees the same
+        # clock face as Claude Code's /usage. Falls back to UTC slice if
+        # the conversion fails (very old date binary, etc).
+        LOCAL_HHMM=$(iso_utc_to_local_hhmm "$RESETS_5H")
+        if [ -n "$LOCAL_HHMM" ]; then
+            RESET_SHORT=" (reset $LOCAL_HHMM)"
+        else
+            RESET_SHORT=" (reset ${RESETS_5H:11:5}Z)"
+        fi
     fi
     LINE="$LINE · 5h ${PCT_5H}%${RESET_SHORT}"
 fi
