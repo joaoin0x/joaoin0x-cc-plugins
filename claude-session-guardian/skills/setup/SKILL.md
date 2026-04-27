@@ -101,20 +101,64 @@ Bash (single): mkdir -p "$CLAUDE_BASE/session-guardian/checkpoints"
 Bash (single): chmod 0700 "$CLAUDE_BASE/session-guardian"
 ```
 
-### PASSO 8 — Confirmar ao utilizador
+### PASSO 8 — Health check (CRITICO antes de declarar setup OK)
+
+Falha aqui no passado: setup escrevia settings.json e declarava sucesso, mas o
+statusline tinha bug não detectado (ex: rejeição de Unix epoch em v1.0.0/v1.0.1)
+que só se manifestava no runtime. Resultado: utilizador acreditava que tinha
+monitor activo quando na verdade rate-state nunca era escrito.
+
+Health check executa o script com 2 payloads sintéticos e verifica que produz
+rate-state.json válido em ambos os casos:
+
+```
+Bash (single): TEST_DIR="$CLAUDE_BASE/session-guardian"
+Bash (single): rm -f "$TEST_DIR/rate-state.json"
+
+# Payload 1: Unix epoch (formato actual do Claude Code)
+Bash (single): echo '{"model":{"display_name":"healthcheck"},"rate_limits":{"five_hour":{"used_percentage":42,"resets_at":1777082400}}}' | "$STATUSLINE_SCRIPT" >/dev/null
+
+Bash (single): [ -f "$TEST_DIR/rate-state.json" ] && jq -e '.used_percentage_5h == 42 and (.resets_at_5h | startswith("2026"))' "$TEST_DIR/rate-state.json" >/dev/null && echo "PASS" || echo "FAIL"
+  → Se FAIL: ABORTAR setup. Restaurar backup.
+    Reportar: "Health check 1 (epoch) falhou. O statusline não normaliza
+              Unix epoch para ISO. Bug do plugin. Logs em $TEST_DIR/statusline-errors.log."
+
+# Payload 2: ISO-8601 (formato legado / fallback)
+Bash (single): rm -f "$TEST_DIR/rate-state.json"
+Bash (single): echo '{"model":{"display_name":"healthcheck"},"rate_limits":{"five_hour":{"used_percentage":58,"resets_at":"2026-04-30T12:00:00Z"}}}' | "$STATUSLINE_SCRIPT" >/dev/null
+
+Bash (single): [ -f "$TEST_DIR/rate-state.json" ] && jq -e '.used_percentage_5h == 58' "$TEST_DIR/rate-state.json" >/dev/null && echo "PASS" || echo "FAIL"
+  → Se FAIL: ABORTAR setup. Restaurar backup.
+
+Bash (single): rm -f "$TEST_DIR/rate-state.json"
+  (limpar resíduos do health check; statusline real escreverá no próximo turn)
+```
+
+Se ambos os health checks passam, prosseguir para PASSO 9.
+
+### PASSO 9 — Confirmar ao utilizador
 
 ```
 Emitir mensagem:
-"✓ Setup session-guardian completo.
+"✓ Setup session-guardian completo (health checks passaram para ambos os formatos: epoch + ISO-8601).
 
 Config escrita em: $SETTINGS_PATH
 Backup em:         $BACKUP_PATH
 Statusline script: $STATUSLINE_SCRIPT
 
-PRÓXIMOS PASSOS:
+⚠ RESTART OBRIGATÓRIO ANTES DE TRABALHO IMPORTANTE:
+  O Claude Code lê statusLine.command no arranque da sessão. Esta sessão
+  continua a usar o statusline anterior em memória até fechares e
+  reabrires. Se inicias workflows multi-agent agora, o guardian vai
+  detectar 'rate-state stale' e cair em modo defensivo (alerta sem
+  acções destrutivas — pelo design, mas sem protecção real).
+
+PASSOS RECOMENDADOS:
   1. /reload-plugins
-  2. Abrir nova sessão Claude Code
-  3. O SessionStart hook vai pedir ao modelo para invocar /session-guardian:start
+  2. FECHAR esta sessão
+  3. Abrir nova sessão Claude Code
+  4. O SessionStart hook vai pedir ao modelo para invocar
+     /session-guardian:start no primeiro turn
      (ou invoca manualmente se auto-start falhar)
 
 Para desinstalar: /session-guardian:uninstall"

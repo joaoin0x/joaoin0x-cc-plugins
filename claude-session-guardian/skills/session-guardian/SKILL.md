@@ -50,10 +50,39 @@ Se existe $SESSION_DIR/stop-requested.flag:
 2. Ler rate-state.json via Read TOOL.
 
 3. Se ficheiro não existe OU updated_at > 5 minutos atrás:
-   [MODO DEFENSIVO — statusline falhou ou ainda não escreveu]
-   → Emitir: "[session-guardian] AVISO: statusline não escreve há >5min ou está ausente. A assumir plafond 85% por precaução. Corrige statusline ou /session-guardian:stop para desactivar."
-   → Forçar pct=85 (vai accionar HARD WARN)
-   → Continuar com esta pct assumida
+   [MODO DEFENSIVO — dados ausentes/stale, NÃO confiáveis]
+
+   PRINCIPIO CHAVE: nunca disparar acções destrutivas (SendMessage a
+   subagents, HARD STOP, CronCreate de retoma) com dados ausentes. Honest
+   disclosure ao utilizador é a única acção apropriada quando não temos
+   informação real.
+
+   [CANAL 1 — alerta visivel ao utilizador, SEMPRE]
+   Output:
+     "[session-guardian] ⚠ Statusline não escreve há >5min ou rate-state
+      está ausente. Plafond REAL desconhecido.
+
+      NÃO vou:
+      - Assumir uma percentagem fictícia
+      - Enviar SendMessage a subagents (CANAL 2 suprimido)
+      - Disparar HARD STOP nem agendar retoma (sequence completa suprimida)
+
+      Acções ao teu critério:
+      - /usage para verificar plafond manualmente
+      - /session-guardian:stop se queres desligar este loop até reparar
+      - Investiga logs em $CLAUDE_BASE/session-guardian/statusline-errors.log
+        (causas comuns: bug do plugin, statusline mal-configurado, restart
+        de sessão pendente após /session-guardian:setup)"
+
+   [CANAL 2 e CANAL 3 NÃO disparados em modo defensivo — propositadamente]
+
+   [NÃO continuar para PASSO 2/3 — não há pct fiável para decidir]
+
+   Append log em $SESSION_DIR/monitor.log:
+     "$(date -u +%FT%TZ) | DEFENSIVE | rate-state ausente ou stale"
+
+   ScheduleWakeup(120, reason="defensive — statusline silent", prompt="/loop /session-guardian")
+   Return.
 ```
 
 ### PASSO 2 — Decidir delay do próximo check
