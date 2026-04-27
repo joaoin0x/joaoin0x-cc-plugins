@@ -57,31 +57,68 @@ Se existe $SESSION_DIR/stop-requested.flag:
    disclosure ao utilizador é a única acção apropriada quando não temos
    informação real.
 
-   [CANAL 1 — alerta visivel ao utilizador, SEMPRE]
+   [PASSO 1.5 — DIAGNÓSTICO AUTOMÁTICO]
+   Antes de emitir o alerta genérico, tentar identificar a causa raiz
+   inspeccionando $CLAUDE_BASE/session-guardian/statusline-errors.log:
+
+   Bash (single): ERR_LOG="$CLAUDE_BASE/session-guardian/statusline-errors.log"
+   Bash (single): [ -f "$ERR_LOG" ] && stat -f '%m' "$ERR_LOG" 2>/dev/null || stat -c '%Y' "$ERR_LOG" 2>/dev/null
+   (timestamp do mtime — se < 5 min, log está activo)
+
+   Se err log activo:
+     Bash (single): tail -3 "$ERR_LOG"
+     Avaliar conteúdo das últimas entradas:
+
+     a) Se contém "invalid resets_at_5h: <número>" (epoch que devia ter
+        sido aceite):
+        DIAGNÓSTICO = "binário em memória obsoleto"
+        SUGESTÃO PRINCIPAL = "fechar esta sessão e abrir nova"
+        DETALHE = "v1.0.2+ aceita Unix epoch; sessão actual ainda usa
+                   binário anterior carregado no startup"
+
+     b) Se contém "is a symlink — refusing to write":
+        DIAGNÓSTICO = "ataque/configuração com symlink"
+        SUGESTÃO = "remover symlink em $CLAUDE_BASE/session-guardian/"
+
+     c) Se contém "cannot create" / "permission denied":
+        DIAGNÓSTICO = "permissões filesystem"
+        SUGESTÃO = "verificar permissões 0700 em $CLAUDE_BASE/session-guardian/"
+
+     d) Outro erro recorrente:
+        DIAGNÓSTICO = "ver últimas linhas do log"
+
+   Se err log NÃO existe ou inactivo (mtime > 5 min):
+     DIAGNÓSTICO = "statusline não está sequer a ser invocado"
+     SUGESTÃO PRINCIPAL = "verificar settings.json statusLine.command"
+     DETALHE = "/session-guardian:setup pode não ter sido corrido, ou o
+                path foi sobrescrito por outro plugin"
+
+   [CANAL 1 — alerta visível com diagnóstico específico]
    Output:
-     "[session-guardian] ⚠ Statusline não escreve há >5min ou rate-state
-      está ausente. Plafond REAL desconhecido.
+     "[session-guardian] ⚠ Modo defensivo — rate-state ausente ou stale.
+
+      Diagnóstico: {DIAGNÓSTICO}
+      Sugestão:    {SUGESTÃO PRINCIPAL}
+      {DETALHE se aplicável}
 
       NÃO vou:
       - Assumir uma percentagem fictícia
       - Enviar SendMessage a subagents (CANAL 2 suprimido)
       - Disparar HARD STOP nem agendar retoma (sequence completa suprimida)
 
-      Acções ao teu critério:
+      Outras acções ao teu critério:
       - /usage para verificar plafond manualmente
-      - /session-guardian:stop se queres desligar este loop até reparar
-      - Investiga logs em $CLAUDE_BASE/session-guardian/statusline-errors.log
-        (causas comuns: bug do plugin, statusline mal-configurado, restart
-        de sessão pendente após /session-guardian:setup)"
+      - /session-guardian:stop para desligar este loop
+      - Logs completos: $CLAUDE_BASE/session-guardian/statusline-errors.log"
 
    [CANAL 2 e CANAL 3 NÃO disparados em modo defensivo — propositadamente]
 
    [NÃO continuar para PASSO 2/3 — não há pct fiável para decidir]
 
    Append log em $SESSION_DIR/monitor.log:
-     "$(date -u +%FT%TZ) | DEFENSIVE | rate-state ausente ou stale"
+     "$(date -u +%FT%TZ) | DEFENSIVE | $DIAGNÓSTICO"
 
-   ScheduleWakeup(120, reason="defensive — statusline silent", prompt="/loop /session-guardian")
+   ScheduleWakeup(120, reason="defensive: $DIAGNÓSTICO", prompt="/loop /session-guardian")
    Return.
 ```
 
