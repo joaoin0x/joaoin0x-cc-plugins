@@ -1,6 +1,6 @@
 #!/bin/bash
 # claude-session-guardian — Statusline writer
-# Version: 1.0.5
+# Version: 1.0.6
 #
 # PURPOSE: Receives Claude Code statusline JSON on stdin, extracts rate_limits,
 # persists them atomically to <CLAUDE_BASE>/session-guardian/rate-state.json so
@@ -53,8 +53,17 @@ PCT_7D=$(printf '%s' "$INPUT" | jq -r '.rate_limits.seven_day.used_percentage //
 RESETS_7D_RAW=$(printf '%s' "$INPUT" | jq -r '.rate_limits.seven_day.resets_at // .rate_limits.sevenDay.resets_at // empty' 2>/dev/null)
 
 # ── Type validation ──────────────────────────────────────────────────────────
+# used_percentage may arrive as integer (42) or float (28.999999999999996)
+# depending on how Claude Code computes it that turn. Accept both.
 is_valid_pct() {
-    [ -n "$1" ] && [[ "$1" =~ ^[0-9]+$ ]] && [ "$1" -ge 0 ] && [ "$1" -le 100 ]
+    [ -n "$1" ] || return 1
+    [[ "$1" =~ ^[0-9]+(\.[0-9]+)?$ ]] || return 1
+    # Range check via awk (bash arithmetic chokes on floats)
+    awk -v v="$1" 'BEGIN { exit !(v >= 0 && v <= 100) }'
+}
+# Round float to nearest integer (half-up). Output is plain digits 0..100.
+round_pct() {
+    awk -v v="$1" 'BEGIN { printf "%d", (v + 0.5) }'
 }
 is_valid_iso8601() {
     [ -n "$1" ] && [[ "$1" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2} ]]
@@ -85,9 +94,20 @@ normalize_resets_at() {
 RESETS_5H=$(normalize_resets_at "$RESETS_5H_RAW")
 RESETS_7D=$(normalize_resets_at "$RESETS_7D_RAW")
 
+# Round percentages to integers up-front so downstream (rate-state.json,
+# statusline display, skill comparisons) never sees floats.
+PCT_5H_RAW="$PCT_5H"
+PCT_7D_RAW="$PCT_7D"
+if is_valid_pct "$PCT_5H_RAW"; then
+    PCT_5H=$(round_pct "$PCT_5H_RAW")
+fi
+if is_valid_pct "$PCT_7D_RAW"; then
+    PCT_7D=$(round_pct "$PCT_7D_RAW")
+fi
+
 VALID=1
-if [ -n "$PCT_5H" ] && ! is_valid_pct "$PCT_5H"; then
-    log_error "invalid used_percentage_5h: $PCT_5H"
+if [ -n "$PCT_5H_RAW" ] && ! is_valid_pct "$PCT_5H_RAW"; then
+    log_error "invalid used_percentage_5h: $PCT_5H_RAW"
     VALID=0
 fi
 if [ -n "$RESETS_5H_RAW" ] && [ -z "$RESETS_5H" ]; then
