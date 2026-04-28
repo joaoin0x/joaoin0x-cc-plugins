@@ -13,23 +13,29 @@ Pára o loop de monitorização nesta sessão.
 
 ## Procedimento
 
-### PASSO 1 — AskUserQuestion OBRIGATÓRIO
+### PASSO 1 — AskUserQuestion OBRIGATÓRIO (com opção de retoma agendada)
 
 ```
 AskUserQuestion TOOL:
-  question: "Confirmar paragem do session-guardian? Vais perder monitorização automática de plafond até reactivares manualmente com /session-guardian:start."
+  question: "Confirmar paragem do session-guardian?"
   header: "Parar guardian"
   options: [
-    { label: "Confirmar paragem", description: "Cancela o loop de monitorização agora" },
-    { label: "Cancelar", description: "Mantém o loop activo" }
+    { label: "Parar e agendar retoma após reset",
+      description: "Cancela o loop. Agenda CronCreate para resets_at + 5min para invocar /session-guardian:start automaticamente." },
+    { label: "Parar sem retoma",
+      description: "Cancela o loop. Não agenda nada. Tens de invocar /session-guardian:start manualmente quando quiseres reactivar." },
+    { label: "Cancelar",
+      description: "Mantém o loop activo (não pára)." }
   ]
   multiSelect: false
 ```
 
 ```
-Se resposta == "Cancelar" OU resposta != "Confirmar paragem":
+Se resposta == "Cancelar":
   Emitir: "[session-guardian] Paragem cancelada. Loop continua activo."
   Return.
+
+SCHEDULE_RESUME = (resposta == "Parar e agendar retoma após reset")
 ```
 
 ### PASSO 2 — Append audit log
@@ -78,16 +84,48 @@ Bash (single): rm -f "$SESSION_DIR/soft-warn-sent.flag"
 Bash (single): rm -f "$SESSION_DIR/hard-warn-sent.flag"
 ```
 
+### PASSO 6.5 — Agendar retoma se SCHEDULE_RESUME=true (NOVO v1.0.8)
+
+Só executa se utilizador escolheu "Parar e agendar retoma após reset" no PASSO 1.
+
+```
+Read TOOL: $CLAUDE_BASE/session-guardian/rate-state.json
+  Extrair resets_at_5h.
+
+Calcular resume_at em local TZ:
+  resume_at_epoch = $(date -j -u -f "%Y-%m-%dT%H:%M:%SZ" "$resets_at_5h" "+%s") + 300  (5 min)
+  Extrair minute, hour, day, month na timezone local.
+  Se minute ∈ {0, 30}: +3min para evitar jitter.
+  cron_expr = "<minute> <hour> <day> <month> *"
+
+CronCreate({
+  cron: <cron_expr>,
+  prompt: "/session-guardian:start",
+  recurring: false
+})
+  Se rejeita recurring=false: usar recurring=true + adicionar self-CronDelete
+  no prompt (ver session-guardian/SKILL.md HARD STOP para detalhe).
+
+Guardar cron_id retornado para reportar ao utilizador.
+
+Output adicional: "Retoma agendada. CronCreate id=${cron_id} para ${resume_at_local}."
+```
+
 ### PASSO 7 — Confirmar ao utilizador
 
 ```
-Emitir: "[session-guardian] Loop parado. {N} task(s) cron cancelada(s). Fallback flag escrita.
+Emitir:
+"[session-guardian] Loop parado.
+ Cron(s) cancelado(s): {N}
+ Flag de stop escrita: $SESSION_DIR/stop-requested.flag
 
-NOTA IMPORTANTE:
-- Crons de RETOMA agendados por HARD STOP prévio NÃO são cancelados por este comando.
-  (Se um HARD STOP anterior agendou retoma e queres cancelar também, usa /session-guardian:uninstall
-   ou CronList + CronDelete directamente para o cron de retoma.)
-- Para reactivar: /session-guardian:start"
+ {se SCHEDULE_RESUME=true:}
+   Cron de retoma agendado: id=${cron_id}, dispara ${resume_at_local}.
+ {else:}
+   Sem retoma agendada. Para reactivar: /session-guardian:start.
+
+NOTA: Crons de RETOMA agendados por HARD STOP prévio NÃO são cancelados
+por este comando (CronList + CronDelete directamente se necessário)."
 ```
 
 ## Notas

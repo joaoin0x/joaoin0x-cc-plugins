@@ -1,341 +1,317 @@
 ---
 name: session-guardian
-description: Monitor Claude Code 5-hour rate limit window in a dynamic loop, issue graduated warnings (SOFT at 70%, HARD at 82%), and trigger cooperative pause sequence at 90% with automatic resume via CronCreate after the window resets. Designed to be invoked via /loop /session-guardian (dynamic mode).
+description: Monitor Claude Code 5-hour rate limit window via dynamic /loop. Graduated warnings (SOFT 70%, HARD 82%), cooperative pause + automatic resume at 90%. Adapts cadence based on workflow activity and computes time-to-reset via UTC epoch math (no clock-conversion errors).
 ---
 
 # session-guardian skill
 
-Tu és o guardian da janela de 5 horas do Claude Code. A tua missão é **monitorizar o plafond de uso** via ficheiro `rate-state.json` escrito pelo statusline, e orquestrar **pause cooperativo** quando o plafond se aproxima do limite, com **retoma automática** após o reset.
+Monitor da janela 5h do Claude Code. Iteração leve via `/loop /session-guardian` (dynamic mode). Cada iteração lê estado, decide acção, agenda próximo check.
 
-**Modo de operação**: dynamic loop. Cada iteração lê o estado, decide se há que agir, e agenda o próximo check via `ScheduleWakeup` com delay variável.
-
-## Variáveis de ambiente e paths
+## Paths
 
 ```
 CLAUDE_BASE     = ${CLAUDE_CONFIG_DIR:-$HOME/.claude}
-                  (respeita CLDP/CLDW/custom installations — state convive
-                   com settings.json em vez de ir sempre para ~/.claude)
 STATE_DIR       = $CLAUDE_BASE/session-guardian
-RATE_STATE      = $STATE_DIR/rate-state.json       (escrito pelo statusline)
-CHECKPOINTS_DIR = $STATE_DIR/checkpoints
-SESSION_ID      = ${CLAUDE_SESSION_ID:-<hash cwd+PID fallback>}
-SESSION_DIR     = $STATE_DIR/$SESSION_ID            (per-session state)
-CHECKPOINT      = $CHECKPOINTS_DIR/$SESSION_ID/checkpoint.md
+RATE_STATE      = $STATE_DIR/rate-state.json   (escrito pelo statusline)
+SESSION_ID      = ${CLAUDE_SESSION_ID:-<md5(cwd|PPID)[:12]>}
+SESSION_DIR     = $STATE_DIR/$SESSION_ID
+CHECKPOINT      = $STATE_DIR/checkpoints/$SESSION_ID/checkpoint.md
 ```
 
-## Fluxo (dynamic loop iteration)
+## Helpers (executa inline em Bash quando precisares)
 
-### PASSO 0 — Obter session scope
+### `time_until_reset_seconds`
+Comparação por epoch — ÚNICA forma correcta de calcular tempo até reset. NUNCA inferir por slope (causou bug grave em v1.0.7 onde skill iterou 18 min com cálculo errado).
 
-- Determina `SESSION_ID`. Se `$CLAUDE_SESSION_ID` não existe, usar hash do `$CLAUDE_PROJECT_DIR + $PPID`.
-- Garante que `SESSION_DIR` existe (`mkdir -p`).
-
-### PASSO 0A — Check stop-requested flag
-
-```
-Se existe $SESSION_DIR/stop-requested.flag:
-  → Loop foi parado via /session-guardian:stop (ou fallback do HARD STOP)
-  → Remover a flag (consumed)
-  → NÃO chamar ScheduleWakeup
-  → Return com mensagem: "[session-guardian] Loop terminado."
+```bash
+RESETS_AT="$1"  # ISO-8601 UTC ex: "2026-04-28T02:30:00Z"
+NOW_EPOCH=$(date -u +%s)
+RESET_EPOCH=$(date -j -u -f "%Y-%m-%dT%H:%M:%SZ" "$RESETS_AT" "+%s" 2>/dev/null \
+              || date -d "$RESETS_AT" "+%s" 2>/dev/null)
+SECS_LEFT=$(( RESET_EPOCH - NOW_EPOCH ))
+[ "$SECS_LEFT" -lt 0 ] && SECS_LEFT=0
+MINS_LEFT=$(( SECS_LEFT / 60 ))
 ```
 
-### PASSO 1 — Ler estado
+### `idle_workflow_check`
+Decide se cadence pode ser relaxada. Workflow IDLE = sem subagents activos.
 
-```
-1. Verificar que rate-state.json NÃO é symlink:
-   Bash (single): [ -L "$RATE_STATE" ] && echo "SYMLINK" || echo "OK"
-   Se SYMLINK: emitir alerta crítico, NÃO ler, ScheduleWakeup(300s), return.
-
-2. Ler rate-state.json via Read TOOL.
-
-3. Se ficheiro não existe OU updated_at > 5 minutos atrás:
-   [MODO DEFENSIVO — dados ausentes/stale, NÃO confiáveis]
-
-   PRINCIPIO CHAVE: nunca disparar acções destrutivas (SendMessage a
-   subagents, HARD STOP, CronCreate de retoma) com dados ausentes. Honest
-   disclosure ao utilizador é a única acção apropriada quando não temos
-   informação real.
-
-   [PASSO 1.5 — DIAGNÓSTICO AUTOMÁTICO]
-   Antes de emitir o alerta genérico, tentar identificar a causa raiz
-   inspeccionando $CLAUDE_BASE/session-guardian/statusline-errors.log:
-
-   Bash (single): ERR_LOG="$CLAUDE_BASE/session-guardian/statusline-errors.log"
-   Bash (single): [ -f "$ERR_LOG" ] && stat -f '%m' "$ERR_LOG" 2>/dev/null || stat -c '%Y' "$ERR_LOG" 2>/dev/null
-   (timestamp do mtime — se < 5 min, log está activo)
-
-   Se err log activo:
-     Bash (single): tail -3 "$ERR_LOG"
-     Avaliar conteúdo das últimas entradas:
-
-     a) Se contém "invalid resets_at_5h: <número>" (epoch que devia ter
-        sido aceite):
-        DIAGNÓSTICO = "binário em memória obsoleto"
-        SUGESTÃO PRINCIPAL = "fechar esta sessão e abrir nova"
-        DETALHE = "v1.0.2+ aceita Unix epoch; sessão actual ainda usa
-                   binário anterior carregado no startup"
-
-     b) Se contém "is a symlink — refusing to write":
-        DIAGNÓSTICO = "ataque/configuração com symlink"
-        SUGESTÃO = "remover symlink em $CLAUDE_BASE/session-guardian/"
-
-     c) Se contém "cannot create" / "permission denied":
-        DIAGNÓSTICO = "permissões filesystem"
-        SUGESTÃO = "verificar permissões 0700 em $CLAUDE_BASE/session-guardian/"
-
-     d) Outro erro recorrente:
-        DIAGNÓSTICO = "ver últimas linhas do log"
-
-   Se err log NÃO existe ou inactivo (mtime > 5 min):
-     DIAGNÓSTICO = "statusline não está sequer a ser invocado"
-     SUGESTÃO PRINCIPAL = "verificar settings.json statusLine.command"
-     DETALHE = "/session-guardian:setup pode não ter sido corrido, ou o
-                path foi sobrescrito por outro plugin"
-
-   [CANAL 1 — alerta visível com diagnóstico específico]
-   Output:
-     "[session-guardian] ⚠ Modo defensivo — rate-state ausente ou stale.
-
-      Diagnóstico: {DIAGNÓSTICO}
-      Sugestão:    {SUGESTÃO PRINCIPAL}
-      {DETALHE se aplicável}
-
-      NÃO vou:
-      - Assumir uma percentagem fictícia
-      - Enviar SendMessage a subagents (CANAL 2 suprimido)
-      - Disparar HARD STOP nem agendar retoma (sequence completa suprimida)
-
-      Outras acções ao teu critério:
-      - /usage para verificar plafond manualmente
-      - /session-guardian:stop para desligar este loop
-      - Logs completos: $CLAUDE_BASE/session-guardian/statusline-errors.log"
-
-   [CANAL 2 e CANAL 3 NÃO disparados em modo defensivo — propositadamente]
-
-   [NÃO continuar para PASSO 2/3 — não há pct fiável para decidir]
-
-   Append log em $SESSION_DIR/monitor.log:
-     "$(date -u +%FT%TZ) | DEFENSIVE | $DIAGNÓSTICO"
-
-   ScheduleWakeup(120, reason="defensive: $DIAGNÓSTICO", prompt="/loop /session-guardian")
-   Return.
+```bash
+ACTIVE=$(TaskList | jq '[.[] | select(.status != "completed")] | length')
+[ "${ACTIVE:-0}" -eq 0 ] && IDLE_MODE=1 || IDLE_MODE=0
 ```
 
-### PASSO 2 — Decidir delay do próximo check
+## Fluxo (cada iteração)
+
+### PASSO 0 — Session scope
 
 ```
-pct = used_percentage_5h do rate-state.json
-
-SE pct < 50:    next_delay_seconds = 600   (10 min — passiva)
-SE pct 50-69:   next_delay_seconds = 180   (3 min — passiva)
-SE pct 70-81:   next_delay_seconds = 120   (2 min — SOFT WARN zone)
-SE pct 82-89:   next_delay_seconds = 60    (1 min — HARD WARN zone)
-SE pct >= 90:   HARD STOP sequence (não há next_delay)
+mkdir -p $SESSION_DIR
+SESSION_ID = como definido em "Paths"
 ```
+
+### PASSO 0A — Stop check
+
+```
+SE existe $SESSION_DIR/stop-requested.flag:
+  rm $SESSION_DIR/stop-requested.flag
+  Output: "[session-guardian] Loop terminado (stop flag consumida)."
+  NÃO ScheduleWakeup. Return.
+```
+
+### PASSO 1 — Ler rate-state
+
+```
+SE [ -L "$RATE_STATE" ]:
+  Erro crítico (symlink). ScheduleWakeup(300, "symlink-detected"). Return.
+
+Read TOOL: $RATE_STATE.
+
+SE não existe OU updated_at > 5min atrás:
+  → MODO DEFENSIVO (PASSO 1.5)
+```
+
+### PASSO 1.5 — Modo defensivo (só se rate-state ausente/stale)
+
+PRINCÍPIO: dados ausentes = NUNCA acções destrutivas. Só CANAL 1 com diagnóstico específico.
+
+Inspeccionar `$STATE_DIR/statusline-errors.log`:
+- Se existe E mtime < 5min E últimas linhas contêm `invalid resets_at_5h: <integer>` → diagnóstico "binário em memória obsoleto" → sugestão "fechar sessão e abrir nova"
+- Se existe E contém `is a symlink` → "ataque/configuração com symlink"
+- Se existe E contém `cannot create`/`permission denied` → "permissões filesystem"
+- Se NÃO existe ou inactivo → "statusline não está a ser invocado"
+
+Output:
+```
+[session-guardian] ⚠ Modo defensivo
+Diagnóstico: {DIAG}
+Sugestão: {SUG}
+NÃO disparado: SendMessage, HARD STOP, CronCreate.
+Acções tuas: /usage, /session-guardian:stop, ou ler logs.
+```
+
+`ScheduleWakeup(120, "defensive: $DIAG"). Return.`
+
+### PASSO 1.6 — Limpar flags em downgrade (NOVO v1.0.8)
+
+```
+SE $SESSION_DIR/soft-warn-sent.flag existe E pct < 70:
+  rm $SESSION_DIR/soft-warn-sent.flag
+  Output: "[session-guardian] ✓ Plafond desceu abaixo de 70%. Zona verde."
+
+SE $SESSION_DIR/hard-warn-sent.flag existe E pct < 82:
+  rm $SESSION_DIR/hard-warn-sent.flag
+  Output: "[session-guardian] ✓ Saiu da zona vermelha (<82%). Mantém SOFT WARN se aplicável."
+```
+
+### PASSO 2 — Decidir delay (com IDLE_MODE)
+
+Calcular `IDLE_MODE` (helper acima) e `MINS_LEFT` (helper acima).
+
+| Condição | `next_delay_seconds` |
+|---|---|
+| pct < 50, IDLE_MODE=0 | 600 (10 min) |
+| pct < 50, IDLE_MODE=1 | 1500 (25 min) — overhead-saving |
+| pct 50–69, IDLE_MODE=0 | 180 (3 min) |
+| pct 50–69, IDLE_MODE=1 | 600 (10 min) |
+| pct 70–81, IDLE_MODE=0 | 120 (2 min) — SOFT WARN |
+| pct 70–81, IDLE_MODE=1 | 300 (5 min) — SOFT WARN idle |
+| pct 82–89, IDLE_MODE=0 | 60 (1 min) — HARD WARN |
+| pct 82–89, IDLE_MODE=1 | 180 (3 min) — HARD WARN idle |
+| pct ≥ 90 | HARD STOP (sem next_delay) |
+
+**Adicional clamp**: se `MINS_LEFT < 10` E pct ≥ 70: forçar `next_delay_seconds = 60` independentemente de IDLE_MODE — última fase requer monitor apertado.
 
 ### PASSO 3 — Acção por threshold
 
-#### < 70% — Leitura passiva
+#### pct < 70 — Passiva
 
 ```
-1. Append log em $SESSION_DIR/monitor.log:
-   "$(date -u +%FT%TZ) | pct=${pct}% | passive"
-2. ScheduleWakeup(next_delay_seconds, reason="monitor passive at ${pct}%", prompt="/loop /session-guardian")
-3. Return (mensagem mínima ao output, ex: "guardian: ${pct}%")
+Append log: "{ts} | pct={pct}% | passive | mins_left={MINS_LEFT} | idle={IDLE_MODE}"
+ScheduleWakeup(next_delay_seconds, "monitor passive at ${pct}% (idle=${IDLE_MODE}, ${MINS_LEFT}min left)").
+Return.
+Output mínimo: "guardian: ${pct}% (${MINS_LEFT}min até reset)"
 ```
 
-#### 70–81% — SOFT WARN
+#### pct 70–81 — SOFT WARN
 
 ```
-1. Ler $SESSION_DIR/soft-warn-sent.flag (test file exists).
-2. Se flag NÃO existe (primeira entrada na zona amarela):
-   [CANAL 1] Emitir mensagem visível ao utilizador:
-     "[session-guardian] ⚠ Plafond 5h a ${pct}% — zona amarela.
-      HARD STOP iminente aos 90%. Considera NÃO iniciar novos waves /
-      skills pesadas. Continua trabalho em curso se houver."
-   Write $SESSION_DIR/soft-warn-sent.flag (empty file, marker).
+SE NÃO existe $SESSION_DIR/soft-warn-sent.flag:
+  [CANAL 1] Output:
+    "[session-guardian] ⚠ Plafond 5h a ${pct}% — zona amarela.
+     ${MINS_LEFT} min até reset. HARD STOP aos 90%.
+     Considera NÃO iniciar novos waves / skills pesadas."
+  Write soft-warn-sent.flag.
 
-3. Append log em $SESSION_DIR/monitor.log:
-   "$(date -u +%FT%TZ) | pct=${pct}% | soft-warn"
-
-4. ScheduleWakeup(120, reason="soft warn zone at ${pct}%", prompt="/loop /session-guardian")
-5. Return
+Append log: "{ts} | pct={pct}% | soft-warn | mins_left={MINS_LEFT}"
+ScheduleWakeup(next_delay_seconds, "soft warn at ${pct}% (${MINS_LEFT}min left)").
+Return.
 ```
 
-#### 82–89% — HARD WARN (escalado)
+#### pct 82–89 — HARD WARN
 
 ```
-1. Ler $SESSION_DIR/hard-warn-sent.flag.
-2. Se flag NÃO existe (primeira entrada na zona vermelha):
+SE NÃO existe $SESSION_DIR/hard-warn-sent.flag:
+  [CANAL 1] Output:
+    "[session-guardian] 🔴 Plafond 5h a ${pct}% — ZONA VERMELHA.
+     ${MINS_LEFT} min até reset. HARD STOP aos 90%.
+     Termina waves em curso. NÃO inicies novos."
 
-   [CANAL 1] Emitir ao output:
-     "[session-guardian] 🔴 Plafond 5h a ${pct}% — ZONA VERMELHA.
-      HARD STOP previsto ao chegar aos 90%. Termina waves em curso.
-      NÃO inicies novos. Retoma automática agendada após reset da janela."
+  [CANAL 2] CONDICIONAL — só se IDLE_MODE=0:
+    Para cada subagent activo (TaskList):
+      SendMessage(to=<name>, message="Plafond 5h a ${pct}%. NÃO inicies novas tarefas.
+        Se em tarefa longa, avalia se é seguro parar em checkpoint. HARD STOP aos 90%.")
+  Se IDLE_MODE=1: Output adicional: "(CANAL 2 suprimido — workflow já idle)"
 
-   [CANAL 2] TaskList TOOL → identificar subagents activos (status != completed).
-   Para cada subagent activo:
-     SendMessage(to=<agent_name>,
-       message="Plafond 5h a ${pct}%. NÃO inicies novas tarefas. Se estiveres a meio de tarefa longa, avalia se é seguro parar em checkpoint. HARD STOP será forçado aos 90%."
-     )
+  [CANAL 3] PushNotification se disponível:
+    title="Claude Code — plafond ${pct}%"
+    body="HARD STOP iminente. ${MINS_LEFT} min até reset."
+    Falha silenciosa se tool indisponível.
 
-   [CANAL 3] Tentar PushNotification (se disponível):
-     title="Claude Code — plafond ${pct}%"
-     body="HARD STOP iminente. Retoma automática após reset."
-     Se tool indisponível ou falhar: skip silenciosamente.
+  Write hard-warn-sent.flag.
 
-   Write $SESSION_DIR/hard-warn-sent.flag.
-
-3. Append log:
-   "$(date -u +%FT%TZ) | pct=${pct}% | hard-warn"
-
-4. ScheduleWakeup(60, reason="hard warn zone at ${pct}%", prompt="/loop /session-guardian")
-5. Return
+Append log: "{ts} | pct={pct}% | hard-warn | mins_left={MINS_LEFT} | idle={IDLE_MODE}"
+ScheduleWakeup(next_delay_seconds, "hard warn at ${pct}% (idle=${IDLE_MODE}, ${MINS_LEFT}min left)").
+Return.
 ```
 
-#### ≥ 90% — HARD STOP (pause sequence)
+#### pct ≥ 90 — HARD STOP
 
 ```
-1. ADQUIRIR LOCK:
-   Verificar $SESSION_DIR/pause.lock:
-     Se existe: outra iteração está a executar HARD STOP → return sem acção.
-     Se não existe: criar com PID actual (ex: echo $$ > $SESSION_DIR/pause.lock).
+1. Lock: criar $SESSION_DIR/pause.lock com PID. Se já existe, return.
 
-2. IDENTIFICAR SUBAGENTS ACTIVOS:
-   TaskList TOOL → lista de tasks com status != "completed".
-   Guardar {task_id, agent_name, last_status} para cada.
+2. TaskList → subagents activos.
 
-3. ENVIAR PAUSE ASAP A CADA SUBAGENT ACTIVO:
-   Para cada subagent:
-     SendMessage(to=<agent_name>,
-       message="PAUSA ASAP. Não inicies nova tarefa, nem continues esta. Reporta idle. Escreve qualquer estado parcial a disco antes de parar. Retoma automática após reset da janela 5h via SendMessage do Maestro."
-     )
-   [RATIONAL: "termina tarefa actual" é não-determinístico se subagent acabou de iniciar
-    nova task. "Pausa ASAP" é deterministico.]
+3. SendMessage a cada activo:
+   "PAUSA ASAP. Não inicies nova tarefa nem continues esta. Reporta idle.
+    Escreve estado parcial a disco antes de parar. Retoma automática
+    após reset 5h via SendMessage."
 
-4. AGUARDAR CONFIRMAÇÕES:
-   Polling de TaskList a cada 10s, timeout máximo 180s.
-   Subagents que confirmaram idle (status=completed após o SendMessage de pausa): marcar como "paused".
-   Subagents que não confirmaram em 180s: marcar como "in-flight" no checkpoint.
-   [Timeout de 180s porque specialists em AUDIT mode podem demorar minutos por finding.]
+4. Polling TaskList a cada 10s, timeout 180s. Marcar paused/in-flight.
 
-5. ESCREVER CHECKPOINT:
-   Criar $CHECKPOINTS_DIR/$SESSION_ID/ se não existe.
-   Write TOOL para $CHECKPOINTS_DIR/$SESSION_ID/checkpoint.md com o schema:
+5. Write checkpoint em $CHECKPOINT (ver schema abaixo).
 
-   ---
-   paused_at: <timestamp ISO>
-   resume_at: <resets_at_5h + 5min>
-   used_percentage_at_pause: <pct>
-   cron_id: <vai ser preenchido no passo 7>
-   workflow_active: <best guess baseado em TaskList e contexto recente>
-   project_dir: <$CLAUDE_PROJECT_DIR>
-   session_id: <$SESSION_ID>
-   ---
+6. resume_at = $resets_at_5h + 5min. Converter para cron 5-field LOCAL TZ.
+   Se minute ∈ {0, 30}: +3min para evitar jitter.
 
-   # Checkpoint — {timestamp}
+7. CronCreate one-shot:
+   prompt = ver "Prompt defensivo de retoma"
+   Tentar recurring=false; fallback recurring=true com self-CronDelete
+   no início do prompt.
 
-   ## Subagents activos ao pausar
+8. Parar próprio loop:
+   A) CronList → CronDelete do task com prompt /session-guardian (não o novo)
+   B) Fallback: write $SESSION_DIR/stop-requested.flag
 
-   | ID | Nome | Status ao pausar | Última SendMessage |
-   |---|---|---|---|
-   | ... | ... | paused/in-flight | ... |
+9. rm $SESSION_DIR/{soft,hard}-warn-sent.flag
+10. rm $SESSION_DIR/pause.lock
 
-   ## Contexto do workflow
-
-   (Descrição livre do que estava em curso, inferida do TaskList e mensagens recentes.)
-
-6. CALCULAR resume_at E CRON:
-   resume_at = resets_at_5h + 5 minutos (parse ISO-8601 + add).
-   Extrair minute, hour, day, month (timezone LOCAL).
-   Se resume_at.minute == 0 ou 30 (jitter risk): adicionar 3 min.
-   cron_expr = "<minute> <hour> <day> <month> *"
-
-7. CRONCREATE ONE-SHOT para retoma:
-   Construir prompt defensivo (ver secção "Prompt defensivo de retoma" abaixo).
-
-   Tentar: CronCreate({
-     cron: <cron_expr>,
-     prompt: <prompt_defensivo>,
-     recurring: false
-   })
-
-   Se CronCreate rejeita `recurring: false` (pré-validação V3 não confirmada):
-     CronCreate({ cron, prompt, recurring: true })
-     + adicionar à primeira linha do prompt_defensivo:
-       "IMMEDIATE: cancela este cron via CronDelete após completares o procedimento (id estará em CronList)."
-
-   Guardar o cron_id retornado. Edit TOOL no checkpoint.md para preencher cron_id no frontmatter.
-
-8. PARAR O PRÓPRIO LOOP (fallback-safe):
-   Tentativa A: CronList → procurar task cujo prompt contenha "/session-guardian" e não seja a recém-criada → CronDelete(id).
-   Tentativa B (fallback se CronList não mostra /loop dynamic):
-     Write $SESSION_DIR/stop-requested.flag.
-     Próxima iteração do loop (se disparar) lê a flag no PASSO 0A e termina.
-
-9. LIMPAR FLAGS DA SESSÃO:
-   rm $SESSION_DIR/soft-warn-sent.flag (se existir)
-   rm $SESSION_DIR/hard-warn-sent.flag (se existir)
-
-10. LIBERTAR LOCK:
-    rm $SESSION_DIR/pause.lock
-
-11. EMITIR MENSAGEM FINAL AO UTILIZADOR:
+11. Output:
     "[session-guardian] 🛑 PAUSA ACTIVA.
-     Plafond 5h a ${pct}% — hard stop accionado.
-     Retoma automática agendada para ${resume_at} (em ${N} min).
-     Checkpoint: ${CHECKPOINT_FILE}
-     MANTÉM O TERMINAL ABERTO até ao resume — cron é session-scoped."
+     Plafond 5h ${pct}%. Retoma agendada para ${resume_at_local} (${MINS_LEFT}min).
+     Checkpoint: ${CHECKPOINT}
+     MANTÉM O TERMINAL ABERTO (cron é session-scoped)."
 
-12. NÃO chamar ScheduleWakeup — loop termina aqui até o CronCreate disparar.
+12. NÃO ScheduleWakeup.
 ```
 
-## Prompt defensivo de retoma
+### PASSO 4 — Auto-pause por overhead idle (NOVO v1.0.8)
 
-Usar este texto exacto (com placeholders substituídos) no `prompt` do `CronCreate`:
+Trigger: a skill detecta que está a iterar há muito tempo em workflow idle, com plafond na zona amarela ou vermelha mas estável (a iteração consome ~1pp/min só com o overhead do próprio loop).
 
 ```
-A janela de 5 horas do Claude Code foi renovada. Antes da pausa havia um workflow em curso. Tens de o retomar SEM perder contexto.
+SE IDLE_MODE=1
+   E pct ≥ 70 (zona amarela ou vermelha)
+   E MINS_LEFT > 30 (ainda demora ao reset)
+   E últimas 5 entradas de monitor.log mostram pct estável (slope < 0.3pp/min):
 
-PROCEDIMENTO OBRIGATORIO (nao saltes passos — executa-os por ordem):
+  → AUTO-PAUSE (não é HARD STOP, é shutdown preventivo do loop)
+    Skill decide parar para não consumir plafond inutilmente.
+
+  Procedimento:
+  1. Output:
+     "[session-guardian] 🟡 Auto-pause preventivo.
+      Workflow idle (sem subagents activos), plafond ${pct}% estável,
+      reset em ${MINS_LEFT}min. O loop em si consumiria ~${MINS_LEFT}pp
+      durante esse tempo. Vou parar e agendar retoma para após reset."
+
+  2. CronCreate one-shot para resume_at = resets_at_5h + 5min:
+     prompt: "/session-guardian:start"
+     (prompt simples — só re-arranca o monitor; nenhum workflow para
+      retomar porque IDLE_MODE=1, nada para checkpoint)
+
+  3. Append log: "{ts} | pct={pct}% | AUTO-PAUSE-IDLE | cron-id={cron_id}"
+
+  4. Parar loop (mesmo fallback que HARD STOP passo 8).
+
+  5. Output final:
+     "Loop pausado. Cron de re-arranque agendado para ${resume_at_local}.
+      Para cancelar: CronDelete ${cron_id}."
+
+  6. NÃO ScheduleWakeup.
+```
+
+**Distinção crítica**: AUTO-PAUSE-IDLE ≠ HARD STOP. Não há subagents para pausar (já estão idle), não há checkpoint de workflow (não há workflow). Só agenda re-arranque do monitor.
+
+## Schema do checkpoint (PASSO 3 ≥90%)
+
+```yaml
+---
+paused_at: <ISO UTC>
+resume_at: <ISO UTC, = resets_at_5h + 5min>
+used_percentage_at_pause: <int>
+cron_id: <8-char>
+workflow_active: <inferido de TaskList + contexto recente>
+project_dir: <$CLAUDE_PROJECT_DIR>
+session_id: <$SESSION_ID>
+---
+
+# Checkpoint — {timestamp local}
+
+## Subagents activos ao pausar
+
+| ID | Nome | Status | Última SendMessage |
+|---|---|---|---|
+| ... | ... | paused/in-flight | ... |
+
+## Contexto do workflow
+
+Texto livre — workflow + wave + ticket em curso, etc.
+```
+
+## Prompt defensivo de retoma (HARD STOP only)
+
+Inserir literal no `prompt` do `CronCreate` (com placeholders substituídos):
+
+```
+A janela 5h do Claude Code foi renovada. Antes da pausa havia workflow em curso.
+
+PROCEDIMENTO OBRIGATÓRIO (NÃO saltar passos):
 
 1. Read TOOL: {CHECKPOINT_PATH}
-   (Ex: ${CLAUDE_CONFIG_DIR:-$HOME/.claude}/session-guardian/checkpoints/{SESSION_ID}/checkpoint.md)
+2. Interpreta o checkpoint: workflow, subagents, última SendMessage, wave/fase.
+3. Para cada subagent listado (paused ou in-flight):
+   SendMessage(to=<name>, message="Pausa terminou. Estado antes: {resumo}.
+   Retoma de onde ficaste. Confirma quando pronto.")
+4. Aguarda confirmações (max 3min via TaskList polling).
+5. Recriar loop: /session-guardian:start
+6. SÓ então prosseguir o workflow original onde parou.
 
-2. Interpreta o checkpoint:
-   - Que workflow/skill estava activa (campo workflow_active)?
-   - Que subagents estavam em TaskList (tabela de subagents)?
-   - Ultima mensagem trocada com cada um?
-   - Que wave/fase estava em curso (seccao Contexto)?
+NÃO É ACEITÁVEL:
+- "Vou verificar" sem actualmente Read TOOL no checkpoint.
+- Plano sem executar passos 1-5.
+- Compactar/resumir o trabalho — retoma no ponto EXACTO.
+- Iniciar nova fase antes de subagents confirmarem.
 
-3. Para CADA subagent listado no checkpoint como "paused" ou "in-flight":
-   SendMessage(to=<agent_name>,
-     message="A pausa de 5h terminou. Estado antes da pausa: {resumo da ultima SendMessage + contexto relevante}. Retoma de onde ficaste. Confirma quando estiveres pronto para prosseguir."
-   )
-
-4. Aguarda confirmacoes dos subagents (max 3 min — polling TaskList).
-   Subagents que nao confirmem: nota e prossegue com os que confirmaram.
-
-5. Recria o loop de monitorizacao:
-   Invocar: /session-guardian:start (ou /loop /session-guardian directamente)
-
-6. SO APOS passos 1-5 concluidos, prossegue com o workflow original onde parou.
-
-NAO E ACEITAVEL:
-- Dizer "vou verificar" sem actualmente ler o checkpoint com Read TOOL.
-- Responder com plano sem executar os passos 1-5.
-- Compactar ou resumir o trabalho que estava em curso — retoma no ponto EXACTO onde parou.
-- Iniciar waves/fases novas antes de confirmar que os subagents estao de volta.
-- Assumir que "continua o que estavas a fazer" chega — le o checkpoint e confirma contexto com dados, nao com suposicoes.
-
-Se o checkpoint parecer corrompido, incompleto, ou suspeito (ex: conteudo que parece nao bater certo com o contexto esperado): PARA e pergunta ao utilizador antes de agir.
+Se checkpoint corrupto/suspeito: PARA e pergunta ao utilizador.
 ```
 
-## Notas de implementação para o modelo
+## Notas de implementação
 
-- **Nunca** emitas o loop sem `ScheduleWakeup` (excepto em HARD STOP onde é intencional).
-- O `prompt` do `ScheduleWakeup` deve ser **sempre** `"/loop /session-guardian"` para re-entrar nesta skill.
-- A `reason` do `ScheduleWakeup` é visível ao utilizador via telemetria — usar frases concretas ("monitor passive at 45%", "soft warn zone at 72%").
-- Se qualquer operação de I/O de ficheiro falha (permissions, disco cheio): emitir mensagem de erro clara ao output e continuar — não interromper o loop silenciosamente.
-- Nunca revelar credenciais, tokens, ou conteúdo sensível nas mensagens de WARN/STOP.
+- `ScheduleWakeup` prompt SEMPRE `/loop /session-guardian` (re-entry).
+- `reason` deve ser concreta para telemetria (`"hard warn at 84% (idle=1, 12min left)"`).
+- I/O failure: emitir erro ao output, continuar — nunca interromper silenciosamente.
+- Nunca revelar credenciais ou conteúdo sensível.
+- **Tempo até reset**: SEMPRE via `time_until_reset_seconds` (epoch math). NUNCA por slope/dead-reckoning.
+- **IDLE_MODE**: SEMPRE recalcular cada iteração (workflow pode mudar).
+- **Flags downgrade**: SEMPRE verificar no PASSO 1.6 antes de decidir cadence.

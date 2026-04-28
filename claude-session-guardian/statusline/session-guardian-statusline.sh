@@ -1,6 +1,6 @@
 #!/bin/bash
 # claude-session-guardian — Statusline writer
-# Version: 1.0.7
+# Version: 1.0.8
 #
 # PURPOSE: Receives Claude Code statusline JSON on stdin, extracts rate_limits,
 # persists them atomically to <CLAUDE_BASE>/session-guardian/rate-state.json so
