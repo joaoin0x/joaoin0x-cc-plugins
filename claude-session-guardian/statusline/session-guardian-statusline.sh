@@ -1,6 +1,6 @@
 #!/bin/bash
 # claude-session-guardian — Statusline writer
-# Version: 1.0.8
+# Version: 1.0.9
 #
 # PURPOSE: Receives Claude Code statusline JSON on stdin, extracts rate_limits,
 # persists them atomically to <CLAUDE_BASE>/session-guardian/rate-state.json so
@@ -42,6 +42,28 @@ INPUT=$(cat)
 
 # ── Minimal statusline output (always emit, even on error) ───────────────────
 MODEL=$(printf '%s' "$INPUT" | jq -r '.model.display_name // .model.name // "Claude"' 2>/dev/null)
+
+# ── Context window (v1.0.9+) ─────────────────────────────────────────────────
+# Schema (per Claude Code docs):
+#   .context_window.context_window_size     — total (200000 or 1000000)
+#   .context_window.used_percentage         — pre-calculated 0..100
+#   .context_window.total_input_tokens      — cumulative this session
+#   .context_window.total_output_tokens     — cumulative this session
+CTX_SIZE=$(printf '%s' "$INPUT" | jq -r '.context_window.context_window_size // empty' 2>/dev/null)
+CTX_PCT=$(printf '%s' "$INPUT" | jq -r '.context_window.used_percentage // empty' 2>/dev/null)
+
+# Compact token formatter: 892 → "892", 47235 → "47k", 1234567 → "1.2M"
+fmt_tokens_compact() {
+    awk -v v="$1" 'BEGIN {
+        if (v == "" || v < 0) { print ""; exit }
+        if (v < 1000) { printf "%d", v }
+        else if (v < 1000000) { printf "%dk", (v + 500) / 1000 }
+        else { printf "%.1fM", v / 1000000 }
+    }'
+}
+
+# ── Effort level (v1.0.9+) ───────────────────────────────────────────────────
+EFFORT=$(printf '%s' "$INPUT" | jq -r '.effort.level // empty' 2>/dev/null)
 
 # ── Extract rate_limits with defensive parsing ───────────────────────────────
 # Payload shape verified at runtime (V4 validation). Fall back gracefully.
@@ -186,8 +208,25 @@ if [ "$VALID" -eq 1 ] && [ -n "$PCT_5H" ] && [ -n "$RESETS_5H" ]; then
 fi
 
 # ── Emit statusline ──────────────────────────────────────────────────────────
-# Format: Model · 5h PCT% (reset HH:MM) · 7d PCT%
+# Format (v1.0.9): Model [effort] · ctx Nk/Mk (X%) · 5h X% (reset HH:MM) · 7d X%
 LINE="$MODEL"
+
+# Effort level — show in brackets after model name (e.g. "Opus 4.7 [xhigh]")
+if [ -n "$EFFORT" ] && [ "$EFFORT" != "null" ]; then
+    LINE="$LINE [${EFFORT}]"
+fi
+
+# Context window usage — only display if both size and pct are present and valid
+if [ -n "$CTX_SIZE" ] && [ "$CTX_SIZE" != "null" ] && [ -n "$CTX_PCT" ] && [ "$CTX_PCT" != "null" ]; then
+    # Compute used tokens from size and pct (round to int)
+    CTX_USED_TOKENS=$(awk -v sz="$CTX_SIZE" -v p="$CTX_PCT" 'BEGIN { printf "%d", (sz * p / 100) + 0.5 }')
+    CTX_USED_FMT=$(fmt_tokens_compact "$CTX_USED_TOKENS")
+    CTX_TOTAL_FMT=$(fmt_tokens_compact "$CTX_SIZE")
+    CTX_PCT_INT=$(awk -v p="$CTX_PCT" 'BEGIN { printf "%d", p + 0.5 }')
+    if [ -n "$CTX_USED_FMT" ] && [ -n "$CTX_TOTAL_FMT" ]; then
+        LINE="$LINE · ctx ${CTX_USED_FMT}/${CTX_TOTAL_FMT} (${CTX_PCT_INT}%)"
+    fi
+fi
 
 if is_valid_pct "$PCT_5H"; then
     RESET_SHORT=""
