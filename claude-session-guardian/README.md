@@ -2,12 +2,41 @@
 
 Monitor da janela de 5 horas do Claude Code (Max subscription) com pausa cooperativa automática e retoma agendada após o reset da janela.
 
+## Arquitectura (v1.1.0+)
+
+Background monitor + skill reactiva. Em vez de um `/loop` que paga 1 turn por iteração (~1pp/min), agora um shell script roda em background e o Claude só é chamado quando há sinal real.
+
+```
+┌────────────────────────────────┐
+│ statusline                     │  Cada turn / refreshInterval=60s
+│ (lê rate_limits, escreve JSON) │  Sem custo de tokens.
+└──────────┬─────────────────────┘
+           ↓ rate-state.json
+┌────────────────────────────────┐
+│ monitors/watch-rate-state.sh   │  Background process.
+│ (Detector — shell, sem tokens) │  Polls cada 60s.
+└──────────┬─────────────────────┘
+           ↓ stdout (notification)
+           │ Só em ZONE_UPGRADE ou
+           │ HEALTHY (a cada 30 min)
+┌──────────▼─────────────────────┐
+│ Claude Code                    │  Recebe notification no chat,
+│ → invoca /session-guardian:react│  invoca a skill react.
+└──────────┬─────────────────────┘
+           ↓
+┌────────────────────────────────┐
+│ skill react                    │  Decide acção (WARN, HARD STOP).
+│ (tem acesso a tools)           │  Tem TaskList, SendMessage,
+│                                │  CronCreate.
+└────────────────────────────────┘
+```
+
 ## O que faz
 
-1. **Monitor contínuo** — lê `rate_limits` via statusline e decide acções por threshold, com delay dinâmico (menos checks quando o plafond está baixo, mais checks quando está alto — custo de tokens proporcional ao risco).
-2. **Avisos graduados** — SOFT WARN aos 70% (mensagem no terminal), HARD WARN aos 82% (terminal + SendMessage a subagents activos + push notification).
-3. **Pause cooperativo aos 90%** — pede a todos os subagents activos para "Pausa ASAP e reporta idle", escreve checkpoint do estado do workflow, agenda retoma via `CronCreate`.
-4. **Retoma automática** — ao fim de `resets_at + 5min`, o Cron dispara um prompt defensivo que força o Claude a ler o checkpoint, re-sincronizar com subagents, e continuar onde parou.
+1. **Detector em background (zero tokens)** — `monitors/watch-rate-state.sh` poll a cada 60s. Notifica o Claude **só** em transições de zona (UPGRADE) ou em pulsos de saúde (a cada 30 min).
+2. **Avisos graduados via reactor** — SOFT WARN aos 70%, HARD WARN aos 82% (com SendMessage a subagents activos + push notification).
+3. **Pause cooperativo aos 90%** — reactor pede a todos os subagents para "Pausa ASAP e reporta idle", escreve checkpoint, agenda retoma via `CronCreate`.
+4. **Retoma automática** — ao fim de `resets_at + 5min`, Cron dispara prompt defensivo que força o Claude a ler checkpoint e retomar.
 
 ## Quando usar
 
@@ -17,9 +46,10 @@ Monitor da janela de 5 horas do Claude Code (Max subscription) com pausa coopera
 
 ## Requisitos
 
-- Claude Code CLI ≥ 2.1.80 (statusline com `rate_limits`)
+- Claude Code CLI ≥ **2.1.121** (refreshInterval em statusline; plugin monitors disponíveis desde 2.1.105)
 - Max subscription (Pro tem janela 5h mas o payload pode diferir — não testado)
-- `jq` instalado (usado pelo statusline script e pela skill de setup)
+- `jq` instalado (usado pelo statusline + monitor + setup)
+- **Não suportado**: Bedrock, Vertex AI, Microsoft Foundry — Monitor tool indisponível nestes hosts. Fallback: `/loop /session-guardian` legacy (skill mantida)
 
 ## Instalação
 
@@ -50,7 +80,12 @@ O setup:
 /reload-plugins
 ```
 
-Fecha o terminal actual e abre uma sessão nova. O SessionStart hook vai pedir ao modelo para invocar `/session-guardian:start` no primeiro turn.
+Fecha o terminal actual e abre uma sessão nova. O monitor `rate-limit-watcher` arranca **automaticamente** (declarado no plugin manifest). Já não precisas de invocar `/session-guardian:start` — o background detector fica activo desde o startup.
+
+Para confirmar que está a correr:
+```
+TaskList | grep rate-limit-watcher
+```
 
 ## Uso
 

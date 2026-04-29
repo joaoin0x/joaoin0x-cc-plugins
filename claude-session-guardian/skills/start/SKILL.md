@@ -1,59 +1,79 @@
 ---
 name: start
-description: Manually start the session-guardian monitoring loop in the current Claude Code session. Useful when SessionStart hook auto-start failed, when the loop was previously stopped, or when the user wants to enable monitoring mid-session.
+description: Manual start of the session-guardian monitor or legacy /loop fallback. v1.1.0+ runs the monitor automatically via the plugin manifest, so this skill is rarely needed — useful when the user explicitly stopped monitoring and wants to reactivate, or when running on a host where plugin monitors are unsupported (Bedrock, Vertex AI, Foundry).
 ---
 
 # /session-guardian:start
 
-Arranca o loop de monitorização `/loop /session-guardian` nesta sessão.
+Activa monitorização do plafond na sessão actual. Em v1.1.0+, o monitor `rate-limit-watcher` arranca automaticamente via plugin manifest — esta skill cobre os casos em que isso falha ou foi desactivado.
 
 ## Procedimento
 
-### PASSO 1 — Verificar se já está activo
+### PASSO 1 — Detectar se monitor já está active
 
 ```
-Invocar CronList TOOL.
-Procurar task cujo prompt contenha "/session-guardian" ou "session-guardian".
+Invocar TaskList TOOL.
+Filtrar tasks com command contendo "watch-rate-state.sh" OU description com "rate-limit-watcher".
 
-Se encontrado:
-  Emitir: "[session-guardian] Loop já activo (task_id=<id>). Nada a fazer."
+Se encontrado E status="running":
+  Emitir: "[session-guardian] Monitor 'rate-limit-watcher' já está active (task_id=<id>). Nada a fazer."
   Return.
 ```
 
-### PASSO 2 — Limpar state antigo (defensivo)
+### PASSO 2 — Detectar se host suporta monitors
 
 ```
-Se $SESSION_DIR/stop-requested.flag existe:
-  Bash (single): rm -f "$SESSION_DIR/stop-requested.flag"
-  (consumida — utilizador quer arrancar agora)
+Bash (single): echo "${ANTHROPIC_BEDROCK_BASE_URL:-}${ANTHROPIC_VERTEX_PROJECT_ID:-}${ANTHROPIC_FOUNDRY_BASE_URL:-}"
+
+Se non-empty:
+  HOST_SUPPORTS_MONITOR=0  (Bedrock/Vertex/Foundry — Monitor tool indisponível)
+Senão:
+  HOST_SUPPORTS_MONITOR=1
 ```
 
-### PASSO 3 — Arrancar o loop
-
-Invocar skill `/loop` com prompt `"/session-guardian"` (dynamic mode — sem intervalo explícito, o guardian auto-ajusta):
+### PASSO 3a — Se host suporta monitor: re-arrancar via plugin reload
 
 ```
-Skill TOOL: skill="loop", args="/session-guardian"
+Se HOST_SUPPORTS_MONITOR=1:
+  Output: "[session-guardian] O monitor v1.1.0 deveria ter arrancado automaticamente.
+           Possíveis causas:
+            - Plugin foi recém-instalado/actualizado e Claude Code não recarregou
+            - Sessão arrancou antes de o setup estar completo
+           Resolução:
+            1. Executa /reload-plugins
+            2. Se persistir, fecha esta sessão e abre uma nova"
+  Return.
 ```
 
-Isto entrega ao skill /loop a instrução de correr `/session-guardian` em dynamic mode. O guardian toma conta a partir daí.
+### PASSO 3b — Se host NÃO suporta monitor: fallback para /loop legacy
 
-### PASSO 4 — Confirmar ao utilizador
+```
+Se HOST_SUPPORTS_MONITOR=0:
+  Limpar state antigo:
+    Bash (single): rm -f "$SESSION_DIR/stop-requested.flag"
 
-Ler `$CLAUDE_CONFIG_DIR/session-guardian/rate-state.json` (ou `~/.claude/session-guardian/rate-state.json` se `CLAUDE_CONFIG_DIR` não definido) para reportar estado actual:
+  Invocar /loop /session-guardian (dynamic mode — legacy fallback):
+    Skill TOOL: skill="loop", args="/session-guardian"
+
+  Output: "[session-guardian] Host não suporta plugin monitors (Bedrock/Vertex/Foundry).
+           Fallback para skill /loop /session-guardian (modo polling, mais caro em tokens).
+           Plafond actual: <pct>%. Reset em <minutes_local>."
+```
+
+### PASSO 4 — Reportar estado actual
 
 ```
 CLAUDE_BASE = ${CLAUDE_CONFIG_DIR:-$HOME/.claude}
 Read TOOL: $CLAUDE_BASE/session-guardian/rate-state.json
   Se existe:
-    Extrair used_percentage_5h e resets_at_5h.
-    Emitir: "[session-guardian] Loop arrancado. Plafond 5h actual: ${pct}%. Reset em ${resets_at}."
+    Output: "Plafond 5h actual: <pct>%, reset em <iso_local>."
   Se não existe:
-    Emitir: "[session-guardian] Loop arrancado. (rate-state.json ainda não foi escrito — statusline escreverá no próximo turn.)"
+    Output: "rate-state.json ainda não foi escrito (statusline escreverá no próximo turn ou refresh)."
 ```
 
 ## Notas
 
-- Idempotente: invocar quando já está activo não causa dano, apenas reporta.
-- Não requer `/session-guardian:setup` prévio — pode correr mesmo sem statusline configurado (mas sem estado, o guardian vai para modo defensivo aos 2 min).
-- Se o plugin ainda não foi setup (statusline não aponta para o script), o comando arranca o loop mas o guardian nunca vai ter dados reais — avisa o utilizador.
+- **Idempotente**: invocar quando monitor já está active reporta sem efeitos.
+- **v1.1.0 default**: utilizador raramente precisa desta skill — monitor arranca via manifest.
+- **Hosts sem suporte**: Bedrock, Vertex AI, Microsoft Foundry. Nestes casos, fallback `/loop` é a única opção.
+- **`/reload-plugins`**: solução mais comum quando monitor não arrancou após install/update.

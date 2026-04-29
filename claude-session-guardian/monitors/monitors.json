@@ -1,0 +1,8 @@
+[
+  {
+    "name": "rate-limit-watcher",
+    "command": "${CLAUDE_PLUGIN_ROOT}/monitors/watch-rate-state.sh",
+    "description": "Watches the 5h rate limit window for upgrade transitions (green→yellow→red→critical) and emits a periodic health pulse every 30min. On EVERY notification (ZONE_UPGRADE or HEALTHY), IMMEDIATELY invoke the /session-guardian:react skill with the args provided in the ACTION line. Args format: \"<zone> <pct> <mins_left>\". Do not ignore notifications — the reactor decides whether to alert the user, send messages to active subagents, or trigger the HARD STOP pause sequence (≥90%).",
+    "when": "always"
+  }
+]

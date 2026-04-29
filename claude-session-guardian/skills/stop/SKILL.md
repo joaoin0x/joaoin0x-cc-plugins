@@ -54,28 +54,41 @@ SESSION_ID = ${CLAUDE_SESSION_ID:-<hash cwd+PID fallback>}
 SESSION_DIR = "$CLAUDE_BASE/session-guardian/$SESSION_ID"
 ```
 
-### PASSO 4 — Cancelar task(s) do loop
+### PASSO 4 — Parar background monitor (v1.1.0+)
+
+```
+Invocar TaskList TOOL.
+Filtrar tasks com command contendo "watch-rate-state.sh" OU description com "rate-limit-watcher".
+
+Se encontrado:
+  TaskStop TOOL: task_id=<id>
+  Output: "[session-guardian] Background monitor 'rate-limit-watcher' parado (TaskStop)."
+  TASKSTOP_DONE=1
+Senão:
+  TASKSTOP_DONE=0  (ou estava em /loop legacy, ou já parado)
+```
+
+### PASSO 5 — Cancelar /loop legacy se presente
 
 ```
 Invocar CronList TOOL.
 Filtrar tasks cujo prompt contenha "/session-guardian" ou "session-guardian".
 
-Se nenhuma encontrada:
-  (mas o loop pode estar em dynamic mode sem CronCreate registado — continuar para PASSO 5 que trata do fallback)
-  Nota: "Nenhuma task cron encontrada. A escrever stop-requested.flag como fallback."
-
 Para cada task encontrada:
   CronDelete TOOL: task_id=<id>
+
+Se nenhuma encontrada E TASKSTOP_DONE=0:
+  Nota: "Nenhuma task de monitor encontrada (nem background nem /loop). Provavelmente já parado ou nunca arrancou."
 ```
 
-### PASSO 5 — Fallback via flag (sempre escrever, robusto)
+### PASSO 5.5 — Fallback via flag (legacy /loop)
 
 ```
 Bash (single): mkdir -p "$SESSION_DIR"
 Bash (single): touch "$SESSION_DIR/stop-requested.flag"
 ```
 
-A próxima iteração do loop (se ainda disparar via ScheduleWakeup) lê esta flag no PASSO 0A e termina sem reagendar.
+A próxima iteração do `/loop` legacy (se ainda disparar via ScheduleWakeup) lê esta flag no PASSO 0A e termina sem reagendar. **Não afecta o background monitor v1.1.0+** — esse foi parado no PASSO 4 via TaskStop.
 
 ### PASSO 6 — Limpar flags de warning
 
@@ -115,14 +128,17 @@ Output adicional: "Retoma agendada. CronCreate id=${cron_id} para ${resume_at_lo
 
 ```
 Emitir:
-"[session-guardian] Loop parado.
- Cron(s) cancelado(s): {N}
+"[session-guardian] Monitorização parada.
+ Background monitor (v1.1.0+): {parado / não estava active}
+ /loop legacy task(s) canceladas: {N}
  Flag de stop escrita: $SESSION_DIR/stop-requested.flag
 
  {se SCHEDULE_RESUME=true:}
    Cron de retoma agendado: id=${cron_id}, dispara ${resume_at_local}.
  {else:}
-   Sem retoma agendada. Para reactivar: /session-guardian:start.
+   Sem retoma agendada. Para reactivar:
+   - Se em v1.1.0+ (background monitor): /reload-plugins ou abrir nova sessão
+   - Se em /loop legacy: /session-guardian:start
 
 NOTA: Crons de RETOMA agendados por HARD STOP prévio NÃO são cancelados
 por este comando (CronList + CronDelete directamente se necessário)."

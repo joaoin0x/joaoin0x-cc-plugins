@@ -153,14 +153,16 @@ Bash (single): [ -f "$BACKUP_PATH" ] && echo "OK" || echo "FAIL"
   → Se FAIL: ABORTAR (limpar dispatcher do PASSO 5).
 ```
 
-### PASSO 7 — Mutação atómica do settings.json (apontar para dispatcher)
+### PASSO 7 — Mutação atómica do settings.json (apontar para dispatcher + refreshInterval)
 
 **OBRIGATÓRIO — usar jq, nunca sed/awk sobre JSON.**
+
+`refreshInterval: 60` (NOVO em v1.1.0) força o statusline a re-executar a cada 60s mesmo quando a sessão está idle, garantindo que `rate-state.json` é actualizado com regularidade. Sem isto, em sessões idle o ficheiro pode ficar stale e o monitor lê valores antigos. Suportado em CLI 2.1.121+.
 
 ```
 Bash (single): TMP="${SETTINGS_PATH}.tmp.$$"
 
-Bash (single): jq --arg cmd "$DISPATCHER_PATH" '.statusLine = {type: "command", command: $cmd, padding: 0}' "$SETTINGS_PATH" > "$TMP"
+Bash (single): jq --arg cmd "$DISPATCHER_PATH" '.statusLine = {type: "command", command: $cmd, padding: 0, refreshInterval: 60}' "$SETTINGS_PATH" > "$TMP"
 
 Bash (single): [ -s "$TMP" ] && echo "OK" || echo "EMPTY"
   → Se EMPTY: rm $TMP, restaurar backup, ABORTAR.
@@ -178,6 +180,30 @@ Bash (single): mv -f "$TMP" "$SETTINGS_PATH"
 Bash (single): jq -r '.statusLine.command' "$SETTINGS_PATH"
   → Deve retornar exactamente $DISPATCHER_PATH.
   → Se não bater: restaurar backup, reportar erro.
+```
+
+### PASSO 8.5 — Health check do monitor (NOVO v1.1.0)
+
+Validar que o detector `monitors/watch-rate-state.sh` é sintacticamente válido e executa pelo menos uma iteração sem crashar. Não testa o flow completo (que requer mudanças em rate-state ao longo do tempo) — apenas confirma que o script arranca limpo.
+
+```
+MONITOR_SCRIPT="$CLAUDE_PLUGIN_ROOT/monitors/watch-rate-state.sh"
+
+Bash (single): [ -f "$MONITOR_SCRIPT" ] && echo "PRESENT" || echo "MISSING"
+  → Se MISSING: warning ao user (não abortar — fallback /loop legacy continua viável).
+  → Saltar para PASSO 9.
+
+Bash (single): bash -n "$MONITOR_SCRIPT" && echo "SYNTAX_OK" || echo "SYNTAX_FAIL"
+  → Se SYNTAX_FAIL: ABORTAR setup, restaurar backup, reportar erro.
+
+Bash (single): chmod +x "$MONITOR_SCRIPT"
+
+Sanity run (3s timeout):
+  Bash (single): bash "$MONITOR_SCRIPT" > /tmp/.guardian-monitor-test.$$ 2>&1 & PID=$!; sleep 3; kill $PID 2>/dev/null; wait $PID 2>/dev/null
+
+Bash (single): [ -s /tmp/.guardian-monitor-test.$$ ] || [ -f /tmp/.guardian-monitor-test.$$ ] && echo "RAN" || echo "NORUN"
+Bash (single): rm -f /tmp/.guardian-monitor-test.$$
+  → Se NORUN: warning (script existe mas não correu — pode ser problema de permissões).
 ```
 
 ### PASSO 9 — Health check end-to-end (CRÍTICO)
@@ -229,30 +255,37 @@ Bash (single): ls -1 "$CLAUDE_BASE/plugins/cache/joaoin0x-cc-plugins/claude-sess
 
 ```
 Emitir mensagem:
-"✓ Setup session-guardian v1.0.5 completo (dispatcher pattern).
+"✓ Setup session-guardian v1.1.0 completo (background monitor + dispatcher pattern).
 
 Config escrita em:    $SETTINGS_PATH
 Backup em:            $BACKUP_PATH
 Dispatcher:           $DISPATCHER_PATH
+Monitor script:       $CLAUDE_PLUGIN_ROOT/monitors/watch-rate-state.sh
 Resolve actualmente para versão: <output do passo 10>
 
-Health checks: PASS (epoch + ISO-8601 via dispatcher)
+Health checks: PASS (epoch + ISO-8601 via dispatcher; monitor syntax OK)
 
-⚠ RESTART OBRIGATÓRIO ANTES DE TRABALHO IMPORTANTE:
-  O Claude Code lê statusLine.command no arranque da sessão. Esta sessão
-  continua a usar o statusline anterior em memória até fechares e
-  reabrires.
+ARQUITECTURA v1.1.0 (NOVA):
+- Background monitor 'rate-limit-watcher' arranca AUTOMATICAMENTE em cada
+  sessão. Polls rate-state cada 60s. Emite notification ao detectar
+  upgrade de zona (yellow/red/critical) ou em health pulses (30 min).
+- Skill /session-guardian:react é invocada pelo Claude quando notification
+  chega. Decide acção (WARN, HARD STOP) e executa.
+- ~95% redução de tokens vs v1.0.x (o detector roda em shell, não consome
+  turns).
+
+⚠ RESTART OBRIGATÓRIO:
+  Claude Code lê statusLine.command + monitors no arranque da sessão.
+  Esta sessão continua sem o monitor v1.1.0 até fechares e reabrires.
 
 PASSOS RECOMENDADOS:
   1. /reload-plugins
   2. FECHAR esta sessão
   3. Abrir nova sessão Claude Code
-  4. O SessionStart hook pede invocação de /session-guardian:start no
-     primeiro turn (ou invoca manualmente)
+  4. Verificar via TaskList que 'rate-limit-watcher' está running
 
-VANTAGEM v1.0.5: o dispatcher resolve a versão mais recente do plugin
-em runtime. Updates futuros do plugin (/plugin update) tomam efeito
-no próximo restart de sessão SEM precisar de re-correr este setup.
+VANTAGEM v1.0.5+ (dispatcher): updates futuros do plugin tomam efeito no
+próximo restart SEM precisar de re-correr setup.
 
 Para desinstalar: /session-guardian:uninstall"
 ```
