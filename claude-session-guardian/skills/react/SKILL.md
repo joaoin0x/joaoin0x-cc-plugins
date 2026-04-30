@@ -1,235 +1,279 @@
 ---
 name: react
-description: Reactor invoked when the rate-limit-watcher monitor emits a notification (ZONE_UPGRADE or HEALTHY). Reads current rate-state, decides action based on zone (none, SOFT WARN, HARD WARN, HARD STOP), and executes. Accepts args "<zone> <pct> <mins_left>" via $ARGUMENTS but always validates against rate-state.json for freshness. Includes defensive flag cleanup in green zones (post-reset edge case).
+description: Reactor invoked when the rate-limit-watcher monitor emits a notification. Decides action by zone (5h) or weekly status (7d) and executes atomically. Critical-zone HARD STOP is atomic with CronCreate-first ordering so resume is guaranteed even if subagent SendMessage or checkpoint write fails. Tracks consecutive errors so detector can self-pause if session is monthly-limit-blocked.
 ---
 
 # /session-guardian:react
 
-Skill invocada quando o monitor `rate-limit-watcher` emite uma notification. Decide a acção apropriada e executa.
+Reactor para notifications do detector. Recebe args `<zone> <pct> <mins_left>` ou `<kind> <pct_7d> weekly`.
 
 ## Paths
 
 ```
-CLAUDE_BASE     = ${CLAUDE_CONFIG_DIR:-$HOME/.claude}
-STATE_DIR       = $CLAUDE_BASE/session-guardian
-RATE_STATE      = $STATE_DIR/rate-state.json
-SESSION_ID      = ${CLAUDE_SESSION_ID:-<md5(cwd|PPID)[:12]>}
-SESSION_DIR     = $STATE_DIR/$SESSION_ID
-CHECKPOINT      = $STATE_DIR/checkpoints/$SESSION_ID/checkpoint.md
+CLAUDE_BASE         = ${CLAUDE_CONFIG_DIR:-$HOME/.claude}
+STATE_DIR           = $CLAUDE_BASE/session-guardian
+RATE_STATE          = $STATE_DIR/rate-state.json
+SESSION_ID          = ${CLAUDE_SESSION_ID:-<md5(cwd|PPID)[:12]>}
+SESSION_DIR         = $STATE_DIR/$SESSION_ID
+CHECKPOINT          = $STATE_DIR/checkpoints/$SESSION_ID/checkpoint.md
+REACTOR_STATUS_FILE = $STATE_DIR/.reactor-status   (consecutive error count)
 ```
+
+## Princípios fundamentais (v1.1.1)
+
+1. **CronCreate FIRST em HARD STOP**: agendar retoma é o passo mais importante. Se SendMessage ou checkpoint falharem, retoma ainda acontece. CronCreate primeiro garante isto.
+2. **Sem polling de TaskList**: 1 single check, marcar tudo o resto como "in-flight". Polling causou stream-idle timeout de 15min no incidente de 30 Apr.
+3. **Operações em paralelo onde possível**: SendMessage a múltiplos subagents em parallel tool calls (1 turn).
+4. **Error tracking**: ao falhar (qualquer step), incrementar `$REACTOR_STATUS_FILE`. Ao succeeder fully, escrever 0.
 
 ## Procedimento
 
-### PASSO 0 — Parse args e session scope
+### PASSO 0 — Parse args
 
 ```
-$ARGUMENTS pode ser "<zone> <pct> <mins_left>" ou vazio.
+$ARGUMENTS pode ser:
+  - "<zone> <pct> <mins>" (5h notification)
+  - "<kind> <pct_7d> weekly" (7d notification — kind = WEEKLY_WARN ou WEEKLY_CRITICAL)
 
+Se 3º arg == "weekly" → WEEKLY path. Saltar para PASSO 4-WEEKLY.
+Senão → 5H path.
+```
+
+### PASSO 1 — Lock anti-race
+
+```
 Bash (single): mkdir -p "$SESSION_DIR"
-Tentar parse $ARGUMENTS:
-  ZONE_HINT  = arg 1 (green / green-high / yellow / red / critical)
-  PCT_HINT   = arg 2 (integer 0-100)
-  MINS_HINT  = arg 3 (integer or "?")
+Bash (single): if [ -f "$SESSION_DIR/react.lock" ]; then echo "BUSY"; else echo "$$" > "$SESSION_DIR/react.lock"; echo "ACQUIRED"; fi
 
-Se parse falha ou args ausentes: ZONE_HINT/PCT_HINT/MINS_HINT = vazio.
+Se BUSY: outra invocação a processar. Return sem acção.
 ```
 
-### PASSO 1 — Adquirir lock (anti-race)
-
-```
-Bash (single): [ -f "$SESSION_DIR/react.lock" ] && echo "BUSY" || echo "FREE"
-Se BUSY: outro reactor já a processar — emitir aviso curto e return.
-Se FREE: criar $SESSION_DIR/react.lock com PID actual.
-```
-
-### PASSO 2 — Ler rate-state actual (source of truth)
+### PASSO 2 — Ler rate-state (source of truth)
 
 ```
 Read TOOL: $RATE_STATE
 
-Se ficheiro não existe OU updated_at > 5min atrás:
-  [DEFENSIVE — dados não fiáveis]
+Se ficheiro ausente OU updated_at > 5min atrás:
   Output: "[session-guardian] React invocado mas rate-state ausente/stale.
-           Sem acção destrutiva. Verifica statusline."
-  rm $SESSION_DIR/react.lock
+           Diagnóstico via $STATE_DIR/statusline-errors.log."
+  Bash (single): rm -f "$SESSION_DIR/react.lock"
+  Increment_error  (PASSO 7)
   Return.
 
-Extrair:
-  PCT  = .used_percentage_5h
-  RES  = .resets_at_5h
+PCT     = .used_percentage_5h
+PCT_7D  = .used_percentage_7d
+RESETS  = .resets_at_5h
 ```
 
-### PASSO 3 — Calcular zone actual + minutos até reset
+### PASSO 3 — Determinar zona ACTUAL (validar contra args)
 
 ```
-Helper inline:
-  zone_for_pct():
-    pct < 50         → green
-    pct 50-69        → green-high
-    pct 70-81        → yellow
-    pct 82-89        → red
-    pct >= 90        → critical
-
-  mins_until_reset(iso):
-    epoch = date -j -u -f "%Y-%m-%dT%H:%M:%SZ" "${iso%Z}" "+%s" (BSD)
-            || date -d "$iso" "+%s" (GNU)
-    now = date -u +%s
-    secs = epoch - now (clamp >= 0)
-    return secs / 60
+zone_for_pct():
+  pct < 50         → green
+  pct 50-64        → green-high
+  pct 65-74        → yellow      (SOFT WARN — v1.1.1: shifted from 70)
+  pct 75-84        → red         (HARD WARN — v1.1.1: shifted from 82)
+  pct >= 85        → critical    (HARD STOP — v1.1.1: shifted from 90)
 
 ZONE = zone_for_pct(PCT)
-MINS = mins_until_reset(RES)
+MINS = mins_until_reset(RESETS) via epoch math (helper inline ou via Bash)
 ```
 
-### PASSO 4 — Decidir acção pela ZONE
+### PASSO 4 — Switch por ZONE
 
-#### `green` ou `green-high` — Cleanup defensivo + log
-
-Aplicado em transições "init → green-high" no arranque e em health pulses pós-reset.
+#### `green` ou `green-high` — Defensive cleanup + log
 
 ```
 Se existe $SESSION_DIR/soft-warn-sent.flag OU $SESSION_DIR/hard-warn-sent.flag:
-  rm $SESSION_DIR/soft-warn-sent.flag  (silent if absent)
-  rm $SESSION_DIR/hard-warn-sent.flag
+  Bash (parallel):
+    rm -f "$SESSION_DIR/soft-warn-sent.flag"
+    rm -f "$SESSION_DIR/hard-warn-sent.flag"
   Output: "[session-guardian] ✓ Cleanup: flags antigas limpas (zone=${ZONE}, pct=${PCT}). Provável reset da janela 5h."
 
-Senão (caso normal — health pulse em zona verde):
-  (sem output ao user — reduzir ruído)
-  Append log: "$(date -u +%FT%TZ) | react | ZONE=${ZONE} pct=${PCT} | quiet"
-
+Append log (silent if zone is steady-state).
+Reset error count (PASSO 7).
 rm $SESSION_DIR/react.lock
 Return.
 ```
 
-#### `yellow` (SOFT WARN) — Aviso ao utilizador
+#### `yellow` (SOFT WARN, 65-74%) — Aviso
 
 ```
 Se NÃO existe $SESSION_DIR/soft-warn-sent.flag:
-  [CANAL 1] Output:
-    "[session-guardian] ⚠ Plafond 5h a ${PCT}% — zona amarela.
-     ${MINS} min até reset. HARD STOP automático aos 90%.
-     Considera não iniciar novos waves / skills pesadas."
-  Write $SESSION_DIR/soft-warn-sent.flag
+  Output: "[session-guardian] ⚠ Plafond 5h a ${PCT}% — zona amarela.
+           ${MINS} min até reset. HARD STOP automático aos 85%.
+           Considera não iniciar novos waves / skills pesadas."
+  Bash (single): touch "$SESSION_DIR/soft-warn-sent.flag"
 
-Se flag JÁ existe:
-  (já avisado nesta janela; este invoke veio de health pulse — silent)
+(Se flag existe — health pulse repetido — silent.)
 
-Append log: "$(date -u +%FT%TZ) | react | yellow pct=${PCT} mins=${MINS}"
-rm $SESSION_DIR/react.lock
-Return.
+Reset error count.
+rm react.lock. Return.
 ```
 
-#### `red` (HARD WARN) — Aviso urgente + SendMessage condicional + push
+#### `red` (HARD WARN, 75-84%) — Aviso urgente
 
 ```
 Se NÃO existe $SESSION_DIR/hard-warn-sent.flag:
   [CANAL 1] Output:
     "[session-guardian] 🔴 Plafond 5h a ${PCT}% — ZONA VERMELHA.
-     ${MINS} min até reset. HARD STOP iminente aos 90%.
+     ${MINS} min até reset. HARD STOP iminente aos 85%.
      Termina waves em curso. NÃO inicies novos."
 
   [CANAL 2] CONDICIONAL — só se houver subagents activos:
-    Bash (single): TaskList | jq '[.[] | select(.status != "completed")] | length'
+    Bash (single): TaskList | jq '[.[] | select(.status != "completed")] | length' 2>/dev/null
     Se > 0:
-      Para cada subagent activo:
-        SendMessage(to=<name>,
-          message="Plafond 5h a ${PCT}%. NÃO inicies novas tarefas. Se em
-          tarefa longa, avalia se é seguro parar em checkpoint. HARD STOP
-          iminente aos 90%.")
-    Senão: Output adicional: "(CANAL 2 suprimido — workflow já idle)"
+      Para cada subagent activo (PARALLEL tool calls):
+        SendMessage(to=<name>, message="Plafond 5h a ${PCT}%. NÃO inicies novas
+        tarefas. Avalia se é seguro parar em checkpoint. HARD STOP aos 85%.")
 
-  [CANAL 3] PushNotification se disponível:
-    title="Claude Code — plafond ${PCT}%"
-    body="HARD STOP iminente. ${MINS} min até reset."
-    Falha silenciosa se tool indisponível.
+  [CANAL 3] PushNotification se disponível.
 
-  Write $SESSION_DIR/hard-warn-sent.flag
+  Bash (single): touch "$SESSION_DIR/hard-warn-sent.flag"
 
-Se flag JÁ existe:
-  (já avisado nesta janela; health pulse — silent)
-
-Append log: "$(date -u +%FT%TZ) | react | red pct=${PCT} mins=${MINS}"
-rm $SESSION_DIR/react.lock
-Return.
+Reset error count.
+rm react.lock. Return.
 ```
 
-#### `critical` (HARD STOP, ≥90%) — Pause sequence
+#### `critical` (HARD STOP, ≥85%) — Atomic pause sequence
+
+**ORDEM CRÍTICA (não saltar passos, não paralelizar fases):**
 
 ```
-1. PAUSE LOCK adicional:
-   Bash (single): [ -f "$SESSION_DIR/pause.lock" ] && echo BUSY || echo FREE
-   Se BUSY: HARD STOP já em curso noutra invocação — return.
-   Senão: criar pause.lock com PID.
+4.1 PAUSE LOCK
+  Bash (single): if [ -f "$SESSION_DIR/pause.lock" ]; then echo BUSY; else echo "$$" > "$SESSION_DIR/pause.lock"; echo OK; fi
+  Se BUSY: HARD STOP já em curso — rm react.lock, return.
 
-2. TaskList → identificar subagents activos (status != completed).
+4.2 CALCULAR resume_at + cron expr (FIRST — agendar antes de tudo)
+  Bash (single):
+    RESUME_EPOCH=$(date -j -u -f "%Y-%m-%dT%H:%M:%S" "${RESETS%Z}" "+%s") + 300
+    Em local TZ:
+      MINUTE=$(date -r $RESUME_EPOCH +%M)
+      HOUR=$(date -r $RESUME_EPOCH +%H)
+      DAY=$(date -r $RESUME_EPOCH +%d)
+      MONTH=$(date -r $RESUME_EPOCH +%m)
+    Se MINUTE == "00" ou "30": MINUTE+=3 (jitter avoidance)
+    cron_expr = "$MINUTE $HOUR $DAY $MONTH *"
 
-3. SendMessage cooperativo a cada subagent activo:
-   "PAUSA ASAP. Não inicies nova tarefa nem continues esta. Reporta idle.
-    Escreve estado parcial a disco antes de parar. Retoma automática
-    após reset 5h via SendMessage."
+  VALIDATION: se RESUME_EPOCH <= now+60s (reset já passou ou iminente):
+    Output: "[session-guardian] HARD STOP abortado — reset_at já passou
+             (sliding window?). Cleanup defensivo + manual resume necessário."
+    Bash (parallel): rm -f $SESSION_DIR/{pause,react}.lock; rm -f $SESSION_DIR/{soft,hard}-warn-sent.flag
+    Increment error (PASSO 7).
+    Return.
 
-4. Polling TaskList a cada 10s (timeout 180s) para confirmar idle.
-   Subagents que não confirmem em 180s: marcar "in-flight" no checkpoint.
+4.3 CRONCREATE FIRST (insurance — retoma garantida)
+  CronCreate({
+    cron: <cron_expr>,
+    prompt: <PROMPT_DEFENSIVO_RETOMA — ver secção abaixo>,
+    recurring: false
+  })
 
-5. Write checkpoint em $CHECKPOINT (criar dir se não existe):
+  Se erro:
+    Tentar com recurring=true + adicionar self-CronDelete no início do prompt.
+    Se ainda erro: Output erro claro, increment error, abortar HARD STOP.
 
-   ---
-   paused_at: <ISO UTC now>
-   resume_at: <RES + 5min em ISO UTC>
-   used_percentage_at_pause: <PCT>
-   cron_id: <preenchido no passo 7>
-   workflow_active: <inferir de TaskList + contexto>
-   project_dir: <$CLAUDE_PROJECT_DIR>
-   session_id: <$SESSION_ID>
-   ---
+  Guardar CRON_ID retornado.
 
-   # Checkpoint — <timestamp local>
+4.4 IDENTIFICAR + ALERTAR SUBAGENTS (1 single check, no polling)
+  Bash (single): TaskList | jq '[.[] | select(.status != "completed")] | length'
 
-   ## Subagents activos ao pausar
-   | ID | Nome | Status | Última SendMessage |
-   |---|---|---|---|
-   | ... | ... | paused/in-flight | ... |
+  Se > 0:
+    Para cada subagent (PARALLEL tool calls — 1 turn):
+      SendMessage(to=<name>, message="PAUSA ASAP. Plafond 5h a ${PCT}% —
+      HARD STOP automático. Não inicies nova tarefa nem continues esta.
+      Reporta idle imediatamente. Escreve estado parcial a disco antes
+      de parar. Retoma automática agendada para ${resume_at_local} via
+      cron (id=${CRON_ID}).")
 
-   ## Contexto do workflow
-   <Descrição livre baseada em TaskList + mensagens recentes>
+  NÃO fazer polling. Subagents que não confirmem em 30s são marcados
+  "in-flight" no checkpoint. Confiamos no CronCreate para retoma.
 
-6. Calcular resume_at = RES + 5min. Converter para cron 5-field LOCAL TZ.
-   Se minute ∈ {0, 30}: +3min para evitar jitter.
+4.5 WRITE CHECKPOINT (com cron_id já definido)
+  Write TOOL: $CHECKPOINT (mkdir parent if needed)
+  Conteúdo:
+    ---
+    paused_at: <ISO UTC now>
+    resume_at: <ISO UTC = RESUME_EPOCH>
+    cron_id: <CRON_ID>
+    used_percentage_at_pause: <PCT>
+    workflow_active: <inferir de TaskList + contexto recente>
+    project_dir: <$CLAUDE_PROJECT_DIR>
+    session_id: <$SESSION_ID>
+    ---
 
-7. CronCreate one-shot com prompt defensivo de retoma (ver secção abaixo).
-   Tentar recurring=false; fallback recurring=true com self-CronDelete embutido.
-   Edit checkpoint.md para preencher cron_id no frontmatter.
+    # Checkpoint — <timestamp local>
 
-8. CLEANUP:
-   rm $SESSION_DIR/soft-warn-sent.flag
-   rm $SESSION_DIR/hard-warn-sent.flag
-   rm $SESSION_DIR/pause.lock
-   rm $SESSION_DIR/react.lock
+    ## Subagents activos ao pausar
+    | ID | Nome | Status | Última SendMessage |
+    |---|---|---|---|
+    (linha por subagent — todos marcados "in-flight" excepto se TaskList
+    showed "completed" nesse exacto momento)
 
-9. Output final:
-   "[session-guardian] 🛑 PAUSA ACTIVA.
-    Plafond 5h ${PCT}%. Retoma agendada para <resume_at_local> (${MINS}min).
-    Checkpoint: $CHECKPOINT
-    MANTÉM O TERMINAL ABERTO (cron é session-scoped)."
+    ## Contexto do workflow
+    <Texto livre baseado em TaskList + mensagens recentes>
+
+4.6 CLEANUP + OUTPUT FINAL
+  Bash (parallel):
+    rm -f "$SESSION_DIR/soft-warn-sent.flag"
+    rm -f "$SESSION_DIR/hard-warn-sent.flag"
+    rm -f "$SESSION_DIR/pause.lock"
+    rm -f "$SESSION_DIR/react.lock"
+    echo "0" > "$REACTOR_STATUS_FILE"  (reset error count — sucesso)
+
+  Output:
+    "[session-guardian] 🛑 PAUSA ACTIVA.
+     Plafond 5h ${PCT}% — HARD STOP accionado.
+     Cron de retoma: id=${CRON_ID}, dispara <resume_at_local>.
+     Checkpoint: $CHECKPOINT
+     SendMessages emitidas: <N> subagents alertados.
+     MANTÉM O TERMINAL ABERTO (cron é session-scoped)."
 ```
 
-### PASSO 5 — Append monitor.log
-
-Sempre, em todos os paths excepto early-return defensivo:
+### PASSO 4-WEEKLY — 7-day notifications
 
 ```
-Bash (single): echo "$(date -u +%FT%TZ) | react | zone=${ZONE} pct=${PCT} mins=${MINS} | <action_summary>" >> "$SESSION_DIR/monitor.log"
+Se kind == "WEEKLY_WARN":
+  Output: "[session-guardian] ⚠ Janela semanal (7d) a ${PCT_7D}% — zona de aviso.
+           Avalia o trabalho restante para a semana. Atingir 100% bloqueia
+           a sessão até reset semanal (potencialmente vários dias).
+           Considera reduzir actividade ou planear pausa estratégica."
+
+Se kind == "WEEKLY_CRITICAL":
+  Output: "[session-guardian] 🚨 Janela semanal (7d) a ${PCT_7D}% — CRÍTICO.
+           Hit 100% bloqueia a sessão até reset semanal (vários dias).
+           Recomendação: parar trabalho não-essencial AGORA.
+           Não há HARD STOP automático para 7d (não há retoma viável)."
+
+Reset error count.
+rm react.lock. Return.
 ```
 
-### PASSO 6 — Libertar lock
+### PASSO 7 — Error tracking helpers
+
+**Increment_error (em qualquer abort/error path):**
+```
+Bash (single):
+  cur=$(cat "$REACTOR_STATUS_FILE" 2>/dev/null || echo 0)
+  echo $((cur + 1)) > "$REACTOR_STATUS_FILE"
+```
+
+**Reset_error (em sucesso):**
+```
+Bash (single): echo "0" > "$REACTOR_STATUS_FILE"
+```
+
+Se contador atinge `MAX_CONSECUTIVE_REACTOR_ERRORS=3`, o detector pára de emitir notifications (auto-pause silencioso). Recovery: `echo 0 > $REACTOR_STATUS_FILE` ou ao próximo reactor success.
+
+### PASSO 8 — Append monitor.log (sempre, excepto early defensive return)
 
 ```
-Bash (single): rm -f "$SESSION_DIR/react.lock"
+Bash (single): echo "$(date -u +%FT%TZ) | react | <zone_or_kind> pct=<P> mins=<M> | <action>" >> "$SESSION_DIR/monitor.log"
 ```
 
 ## Prompt defensivo de retoma (HARD STOP)
 
-Inserido no `prompt` do `CronCreate`:
+Inserido literal no `prompt` do CronCreate:
 
 ```
 A janela 5h do Claude Code foi renovada. Antes da pausa havia workflow em curso.
@@ -237,26 +281,27 @@ A janela 5h do Claude Code foi renovada. Antes da pausa havia workflow em curso.
 PROCEDIMENTO OBRIGATÓRIO (NÃO saltar passos):
 
 1. Read TOOL: <CHECKPOINT_PATH>
-2. Interpreta o checkpoint: workflow, subagents, última SendMessage, wave/fase.
+2. Interpreta o checkpoint: workflow, subagents, ultima SendMessage, wave/fase.
 3. Para cada subagent listado (paused ou in-flight):
    SendMessage(to=<name>, message="Pausa terminou. Estado antes: <resumo>.
    Retoma de onde ficaste. Confirma quando pronto.")
-4. Aguarda confirmações (max 3min via TaskList polling).
-5. SÓ então prosseguir o workflow original onde parou.
+4. Aguarda confirmacoes de subagents (max 3 min via TaskList — ou prossegue
+   com os que confirmaram).
+5. SO entao prosseguir o workflow original onde parou.
 
-NÃO É ACEITÁVEL:
-- "Vou verificar" sem actualmente Read TOOL no checkpoint.
+NAO E ACEITAVEL:
+- "Vou verificar" sem actually Read TOOL no checkpoint.
 - Plano sem executar passos 1-4.
-- Compactar/resumir o trabalho — retoma no ponto EXACTO.
+- Compactar/resumir trabalho — retoma no ponto EXACTO.
 - Iniciar nova fase antes de subagents confirmarem.
 
 Se checkpoint corrupto/suspeito: PARA e pergunta ao utilizador.
 ```
 
-## Notas
+## Notas de implementação
 
-- **One-shot**: skill termina sem ScheduleWakeup. Próxima invocação vem da próxima notification do monitor.
-- **Lock files**: `react.lock` (durante toda a skill) e `pause.lock` (durante HARD STOP) protegem contra race conditions se duas notifications chegarem em rápida sucessão.
-- **`hint` args vs rate-state**: args do monitor são úteis para context inicial mas a skill SEMPRE valida contra `rate-state.json`. Se houver discrepância, prevalece o ficheiro (mais recente).
-- **Health pulses são idempotentes**: se a flag de zona já existe, skill apenas faz log. Não re-emite avisos.
-- **Defensive cleanup em green/green-high**: cobre o edge case de reset sem HARD STOP. Em ≤30 min após reset, próximo health pulse trigger reactor → reactor vê zona green com flags antigas → limpa.
+- **CronCreate primeiro é não-negociável**: foi a falha de 30 Apr. Se a sequência abortar entre SendMessage e CronCreate, retoma é perdida. Agendar primeiro garante que mesmo crashes posteriores deixam retoma agendada.
+- **Sem polling**: o incidente mostrou que 15 min de polling matam a sessão por stream-idle. 1 single TaskList check + assume rest as in-flight é suficiente.
+- **PARALLEL tool calls**: SendMessages a múltiplos subagents devem ser parallel (single message com múltiplos tool_use blocks). Reduz latência de N turns para 1.
+- **Lock files com PID**: react.lock e pause.lock contêm PID. Em recuperação de crashes futuros, podemos validar PID vs `kill -0` para detectar locks stale.
+- **Validation `RESUME_EPOCH <= now`**: cobre o caso onde reset já passou (sliding window) — abort HARD STOP em vez de criar cron no passado.

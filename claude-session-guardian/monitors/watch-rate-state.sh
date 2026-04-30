@@ -1,16 +1,29 @@
 #!/bin/bash
 # claude-session-guardian — Background detector
-# Version: 1.1.0
+# Version: 1.1.1
 #
 # PURPOSE: Polls rate-state.json every 60s. Emits a stdout line ONLY on:
-#   - Zone UPGRADE (yellow/red/critical reached)
+#   - Zone UPGRADE (yellow/red/critical reached) — based on 5h window
+#   - Weekly threshold crossings (7d used_percentage)
 #   - Health pulse (every 30 min, proves monitor is alive)
+#   - Auto-pause if too many consecutive reactor errors
 #
 # Each stdout line is delivered to Claude as a notification, prompting it
 # to invoke /session-guardian:react with the supplied args. The reactor
 # then decides what to do (warn user, send messages to subagents, HARD
 # STOP). This keeps the detector lightweight (zero token cost while running)
 # and concentrates all decision logic + tool access in the reactor skill.
+#
+# v1.1.1 changes from v1.1.0 (post-incident learnings):
+#   - Thresholds shifted earlier: HARD STOP at 85% (not 90%), HARD WARN
+#     at 75% (not 82%), SOFT WARN at 65% (not 70%). Gives more headroom
+#     for clean shutdown before hitting hard limits.
+#   - 7-day window monitoring: emits WEEKLY_WARN at 80% and WEEKLY_CRITICAL
+#     at 90% to prevent monthly-limit-hit mid-workflow (root cause of the
+#     30 Apr incident).
+#   - Consecutive error tracking: reactor writes to .reactor-status. If
+#     3+ consecutive errors, detector pauses output to avoid notification
+#     loops when the session is monthly-limit-blocked.
 #
 # Downgrades are deliberately silent — the 5h window only goes to 0% at
 # reset, by which time the session has either been paused (HARD STOP) or
@@ -28,9 +41,12 @@ STATE_DIR="$CLAUDE_BASE/session-guardian"
 RATE_STATE="$STATE_DIR/rate-state.json"
 LAST_ZONE_FILE="$STATE_DIR/.monitor-last-zone"
 LAST_HEALTH_FILE="$STATE_DIR/.monitor-last-health"
+LAST_7D_ZONE_FILE="$STATE_DIR/.monitor-last-7d-zone"
+REACTOR_STATUS_FILE="$STATE_DIR/.reactor-status"
 
-POLL_INTERVAL=60         # seconds between rate-state checks
-HEALTH_INTERVAL=1800     # seconds between health pulses (30 min)
+POLL_INTERVAL=60                   # seconds between rate-state checks
+HEALTH_INTERVAL=1800               # seconds between health pulses (30 min)
+MAX_CONSECUTIVE_REACTOR_ERRORS=3   # stop emitting after this many errors
 
 mkdir -p "$STATE_DIR" 2>/dev/null
 
@@ -44,13 +60,23 @@ fi
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
+# 5h zones (v1.1.1: HARD STOP at 85% not 90% — earlier intervention)
 zone_for_pct() {
     local p="$1"
     if [ "$p" -lt 50 ]; then echo "green"
-    elif [ "$p" -lt 70 ]; then echo "green-high"
-    elif [ "$p" -lt 82 ]; then echo "yellow"
-    elif [ "$p" -lt 90 ]; then echo "red"
+    elif [ "$p" -lt 65 ]; then echo "green-high"
+    elif [ "$p" -lt 75 ]; then echo "yellow"
+    elif [ "$p" -lt 85 ]; then echo "red"
     else echo "critical"
+    fi
+}
+
+# 7d zones (NEW v1.1.1) — to prevent hitting monthly limit mid-workflow
+zone_for_pct_7d() {
+    local p="$1"
+    if [ "$p" -lt 80 ]; then echo "weekly-ok"
+    elif [ "$p" -lt 90 ]; then echo "weekly-warn"
+    else echo "weekly-critical"
     fi
 }
 
@@ -96,6 +122,20 @@ emit_health() {
     echo "ACTION: invoke /session-guardian:react with args \"${zone} ${pct} ${mins}\""
 }
 
+emit_weekly() {
+    local kind="$1" pct_7d="$2"
+    echo "[session-guardian] ${kind} pct_7d=${pct_7d}"
+    echo "ACTION: invoke /session-guardian:react with args \"${kind} ${pct_7d} weekly\""
+}
+
+# Read reactor status flag. Returns consecutive error count (0 if file absent or value is 0).
+reactor_consecutive_errors() {
+    [ -f "$REACTOR_STATUS_FILE" ] || { echo 0; return; }
+    local v
+    v=$(cat "$REACTOR_STATUS_FILE" 2>/dev/null)
+    [[ "$v" =~ ^[0-9]+$ ]] && echo "$v" || echo 0
+}
+
 # ── Main loop ────────────────────────────────────────────────────────────────
 
 while true; do
@@ -105,9 +145,19 @@ while true; do
         continue
     fi
 
+    # Auto-pause output if reactor has been failing repeatedly (e.g. session
+    # blocked by monthly limit). Avoids notification loops when reactor cannot
+    # respond. Detector keeps polling state silently for when reactor recovers.
+    REACTOR_ERRORS=$(reactor_consecutive_errors)
+    if [ "$REACTOR_ERRORS" -ge "$MAX_CONSECUTIVE_REACTOR_ERRORS" ]; then
+        sleep "$POLL_INTERVAL"
+        continue
+    fi
+
     if [ -f "$RATE_STATE" ]; then
         PCT=$(jq -r '.used_percentage_5h // empty' "$RATE_STATE" 2>/dev/null)
         RESETS=$(jq -r '.resets_at_5h // empty' "$RATE_STATE" 2>/dev/null)
+        PCT_7D=$(jq -r '.used_percentage_7d // empty' "$RATE_STATE" 2>/dev/null)
 
         if [ -n "$PCT" ] && [[ "$PCT" =~ ^[0-9]+$ ]]; then
             CURRENT_ZONE=$(zone_for_pct "$PCT")
@@ -135,15 +185,37 @@ while true; do
                 printf '%s' "$CURRENT_ZONE" > "$LAST_ZONE_FILE"
             fi
             # else: same zone, no action
+        fi
 
-            # Health pulse (only if we didn't already emit this iteration)
-            if [ "$EMITTED" -eq 0 ]; then
-                NOW=$(date +%s)
-                LAST_HEALTH=$(cat "$LAST_HEALTH_FILE" 2>/dev/null || echo 0)
-                if [ $(( NOW - LAST_HEALTH )) -ge "$HEALTH_INTERVAL" ]; then
-                    emit_health "$PCT" "$CURRENT_ZONE" "$MINS"
-                    printf '%s' "$NOW" > "$LAST_HEALTH_FILE"
-                fi
+        # Weekly window monitoring (NEW v1.1.1) — independent from 5h zones
+        if [ -n "$PCT_7D" ] && [[ "$PCT_7D" =~ ^[0-9]+$ ]] && [ "$EMITTED" -eq 0 ]; then
+            CURRENT_7D=$(zone_for_pct_7d "$PCT_7D")
+            LAST_7D=$(cat "$LAST_7D_ZONE_FILE" 2>/dev/null || echo "weekly-ok")
+
+            if [ "$CURRENT_7D" != "$LAST_7D" ]; then
+                case "$CURRENT_7D" in
+                    weekly-warn)
+                        if [ "$LAST_7D" = "weekly-ok" ] || [ "$LAST_7D" = "init" ]; then
+                            emit_weekly "WEEKLY_WARN" "$PCT_7D"
+                            EMITTED=1
+                        fi
+                        ;;
+                    weekly-critical)
+                        emit_weekly "WEEKLY_CRITICAL" "$PCT_7D"
+                        EMITTED=1
+                        ;;
+                esac
+                printf '%s' "$CURRENT_7D" > "$LAST_7D_ZONE_FILE"
+            fi
+        fi
+
+        # Health pulse (only if we didn't already emit this iteration)
+        if [ -n "${PCT:-}" ] && [ "$EMITTED" -eq 0 ]; then
+            NOW=$(date +%s)
+            LAST_HEALTH=$(cat "$LAST_HEALTH_FILE" 2>/dev/null || echo 0)
+            if [ $(( NOW - LAST_HEALTH )) -ge "$HEALTH_INTERVAL" ]; then
+                emit_health "$PCT" "$CURRENT_ZONE" "$MINS"
+                printf '%s' "$NOW" > "$LAST_HEALTH_FILE"
             fi
         fi
     fi
