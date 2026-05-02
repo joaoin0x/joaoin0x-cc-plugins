@@ -19,12 +19,14 @@ CHECKPOINT          = $STATE_DIR/checkpoints/$SESSION_ID/checkpoint.md
 REACTOR_STATUS_FILE = $STATE_DIR/.reactor-status   (consecutive error count)
 ```
 
-## Princípios fundamentais (v1.1.1)
+## Princípios fundamentais (v1.1.2)
 
 1. **CronCreate FIRST em HARD STOP**: agendar retoma é o passo mais importante. Se SendMessage ou checkpoint falharem, retoma ainda acontece. CronCreate primeiro garante isto.
 2. **Sem polling de TaskList**: 1 single check, marcar tudo o resto como "in-flight". Polling causou stream-idle timeout de 15min no incidente de 30 Apr.
 3. **Operações em paralelo onde possível**: SendMessage a múltiplos subagents em parallel tool calls (1 turn).
 4. **Error tracking**: ao falhar (qualquer step), incrementar `$REACTOR_STATUS_FILE`. Ao succeeder fully, escrever 0.
+5. **Single Bash em paths leves**: green / RESET_DETECTED / weekly não devem usar 7+ Bash calls. Consolidar em 1 single Bash quando possível.
+6. **Cadence adaptive vem do detector**: o reactor NÃO decide quando voltar a correr. Próxima invocação vem da próxima notification do detector (que poll com cadence apropriada à zona actual).
 
 ## Procedimento
 
@@ -32,11 +34,13 @@ REACTOR_STATUS_FILE = $STATE_DIR/.reactor-status   (consecutive error count)
 
 ```
 $ARGUMENTS pode ser:
-  - "<zone> <pct> <mins>" (5h notification)
-  - "<kind> <pct_7d> weekly" (7d notification — kind = WEEKLY_WARN ou WEEKLY_CRITICAL)
+  - "<zone> <pct> <mins>"           5h ZONE_UPGRADE (yellow/red/critical)
+  - "<zone> <pct> <mins> reset"     5h RESET_DETECTED (post-reset cleanup signal)
+  - "<kind> <pct_7d> weekly"        7d notification (WEEKLY_WARN / WEEKLY_CRITICAL)
 
-Se 3º arg == "weekly" → WEEKLY path. Saltar para PASSO 4-WEEKLY.
-Senão → 5H path.
+Se 4º arg == "reset" → RESET path. Saltar para PASSO 4-RESET.
+Senão se 3º arg == "weekly" → WEEKLY path. Saltar para PASSO 4-WEEKLY.
+Senão → 5H ZONE_UPGRADE path.
 ```
 
 ### PASSO 1 — Lock anti-race
@@ -81,19 +85,19 @@ MINS = mins_until_reset(RESETS) via epoch math (helper inline ou via Bash)
 
 ### PASSO 4 — Switch por ZONE
 
-#### `green` ou `green-high` — Defensive cleanup + log
+#### `green` ou `green-high` — silent no-op
+
+(Em v1.1.2 o detector NÃO emite mais ZONE_UPGRADE para green/green-high — só
+para yellow/red/critical. Esta branch só é alcançada em casos exóticos, ex:
+init com pct already > 0. Tratamento minimalista para evitar custo de turn.)
 
 ```
-Se existe $SESSION_DIR/soft-warn-sent.flag OU $SESSION_DIR/hard-warn-sent.flag:
-  Bash (parallel):
-    rm -f "$SESSION_DIR/soft-warn-sent.flag"
-    rm -f "$SESSION_DIR/hard-warn-sent.flag"
-  Output: "[session-guardian] ✓ Cleanup: flags antigas limpas (zone=${ZONE}, pct=${PCT}). Provável reset da janela 5h."
+Single Bash consolidado:
+  rm -f "$SESSION_DIR/react.lock"
+  echo "0" > "$REACTOR_STATUS_FILE"
+  echo "$(date -u +%FT%TZ) | react | green | quiet-noop" >> "$SESSION_DIR/monitor.log"
 
-Append log (silent if zone is steady-state).
-Reset error count (PASSO 7).
-rm $SESSION_DIR/react.lock
-Return.
+Sem output ao user. Return.
 ```
 
 #### `yellow` (SOFT WARN, 65-74%) — Aviso
@@ -228,6 +232,27 @@ rm react.lock. Return.
      Checkpoint: $CHECKPOINT
      SendMessages emitidas: <N> subagents alertados.
      MANTÉM O TERMINAL ABERTO (cron é session-scoped)."
+```
+
+### PASSO 4-RESET — Cleanup pós-reset (NOVO v1.1.2)
+
+Disparado pelo detector quando a zona transita de active (yellow/red/critical) para quiet (green/green-high). Substitui o "defensive cleanup via health pulse" da v1.1.0/1.1.1.
+
+```
+Single Bash consolidado (1 call, não múltiplos):
+  HAD_FLAGS=0
+  if [ -f "$SESSION_DIR/soft-warn-sent.flag" ]; then HAD_FLAGS=1; rm -f "$SESSION_DIR/soft-warn-sent.flag"; fi
+  if [ -f "$SESSION_DIR/hard-warn-sent.flag" ]; then HAD_FLAGS=1; rm -f "$SESSION_DIR/hard-warn-sent.flag"; fi
+  rm -f "$SESSION_DIR/react.lock"
+  echo "0" > "$REACTOR_STATUS_FILE"
+  echo "$(date -u +%FT%TZ) | react | reset-detected | from=<prev> to=${ZONE} pct=${PCT} | flags_cleaned=${HAD_FLAGS}" >> "$SESSION_DIR/monitor.log"
+
+Se HAD_FLAGS=1:
+  Output: "[session-guardian] ✓ Reset detectado (pct=${PCT}). Flags limpas — zona ${ZONE}."
+Senão:
+  (silent — caso comum quando HARD STOP / stop manual já tinham limpado)
+
+Return.
 ```
 
 ### PASSO 4-WEEKLY — 7-day notifications

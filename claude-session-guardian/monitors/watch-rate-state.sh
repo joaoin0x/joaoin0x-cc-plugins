@@ -1,36 +1,30 @@
 #!/bin/bash
 # claude-session-guardian — Background detector
-# Version: 1.1.1
+# Version: 1.1.2
 #
-# PURPOSE: Polls rate-state.json every 60s. Emits a stdout line ONLY on:
-#   - Zone UPGRADE (yellow/red/critical reached) — based on 5h window
-#   - Weekly threshold crossings (7d used_percentage)
-#   - Health pulse (every 30 min, proves monitor is alive)
-#   - Auto-pause if too many consecutive reactor errors
+# PURPOSE: Polls rate-state.json with adaptive cadence (faster in active
+# zones). Emits a stdout line ONLY when a real signal warrants the reactor's
+# attention:
+#   - ZONE_UPGRADE — transition into a higher 5h zone (yellow/red/critical)
+#   - RESET_DETECTED — significant downgrade (any active zone → green/
+#     green-high), so reactor can clean stale flags from a non-HARD-STOP exit
+#   - WEEKLY_WARN / WEEKLY_CRITICAL — 7d window crossings
 #
-# Each stdout line is delivered to Claude as a notification, prompting it
-# to invoke /session-guardian:react with the supplied args. The reactor
-# then decides what to do (warn user, send messages to subagents, HARD
-# STOP). This keeps the detector lightweight (zero token cost while running)
-# and concentrates all decision logic + tool access in the reactor skill.
+# v1.1.2 (2026-05-02) reverses the v1.1.0 design decision to emit periodic
+# HEALTHY pulses. Real-world data showed:
+#   - Idle session over 14h: 26 health pulses, 26 reactor invocations,
+#     ~181 Bash calls — pure overhead with no actionable outcome.
+#   - 30-min cadence in yellow zone is far too slow for sessions where pct
+#     can climb 30pp in 30 min. By the time the next pulse fires, it's too
+#     late to alert.
 #
-# v1.1.1 changes from v1.1.0 (post-incident learnings):
-#   - Thresholds shifted earlier: HARD STOP at 85% (not 90%), HARD WARN
-#     at 75% (not 82%), SOFT WARN at 65% (not 70%). Gives more headroom
-#     for clean shutdown before hitting hard limits.
-#   - 7-day window monitoring: emits WEEKLY_WARN at 80% and WEEKLY_CRITICAL
-#     at 90% to prevent monthly-limit-hit mid-workflow (root cause of the
-#     30 Apr incident).
-#   - Consecutive error tracking: reactor writes to .reactor-status. If
-#     3+ consecutive errors, detector pauses output to avoid notification
-#     loops when the session is monthly-limit-blocked.
-#
-# Downgrades are deliberately silent — the 5h window only goes to 0% at
-# reset, by which time the session has either been paused (HARD STOP) or
-# the user manually stopped the guardian. Either path already cleans flags.
-# Edge case (reset without HARD STOP, with stale flags) is covered by the
-# reactor doing defensive cleanup in green/green-high zones on the next
-# health pulse (≤30 min after reset).
+# New design (v1.1.2):
+#   - No periodic heartbeats. Reactor only runs on real events.
+#   - Cadence is adaptive to current zone (faster when stakes are higher):
+#     green/green-high → 5 min, yellow → 2 min, red → 1 min, critical → 1 min.
+#   - RESET_DETECTED replaces the "defensive cleanup via health pulse" path:
+#     fires once on downgrade, not every 30 min in green.
+#   - Consecutive-error auto-pause from v1.1.1 still applies.
 #
 # AUTO-STARTED by the plugin's monitors.json manifest. Do not invoke directly.
 
@@ -40,23 +34,19 @@ CLAUDE_BASE="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 STATE_DIR="$CLAUDE_BASE/session-guardian"
 RATE_STATE="$STATE_DIR/rate-state.json"
 LAST_ZONE_FILE="$STATE_DIR/.monitor-last-zone"
-LAST_HEALTH_FILE="$STATE_DIR/.monitor-last-health"
 LAST_7D_ZONE_FILE="$STATE_DIR/.monitor-last-7d-zone"
 REACTOR_STATUS_FILE="$STATE_DIR/.reactor-status"
 
-POLL_INTERVAL=60                   # seconds between rate-state checks
-HEALTH_INTERVAL=1800               # seconds between health pulses (30 min)
+# Adaptive poll intervals (seconds) — active zones poll faster
+POLL_GREEN=300         # 5 min — silent monitoring
+POLL_GREEN_HIGH=300    # 5 min — silent monitoring
+POLL_YELLOW=120        # 2 min — pct can climb fast in this zone
+POLL_RED=60            # 1 min — minutes-to-critical urgency
+POLL_CRITICAL=60       # 1 min — HARD STOP path, but sanity poll
+
 MAX_CONSECUTIVE_REACTOR_ERRORS=3   # stop emitting after this many errors
 
 mkdir -p "$STATE_DIR" 2>/dev/null
-
-# Initialize health pulse anchor on first run so the first pulse is emitted
-# HEALTH_INTERVAL seconds after monitor start (not immediately). Otherwise
-# LAST_HEALTH=0 makes (NOW - 0) >> HEALTH_INTERVAL and the first iteration
-# fires a health pulse, polluting startup.
-if [ ! -f "$LAST_HEALTH_FILE" ]; then
-    printf '%s' "$(date +%s)" > "$LAST_HEALTH_FILE"
-fi
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -116,10 +106,13 @@ emit_zone_upgrade() {
     echo "ACTION: invoke /session-guardian:react with args \"${zone} ${pct} ${mins}\""
 }
 
-emit_health() {
-    local pct="$1" zone="$2" mins="$3"
-    echo "[session-guardian] HEALTHY zone=${zone} pct=${pct} mins_left=${mins}"
-    echo "ACTION: invoke /session-guardian:react with args \"${zone} ${pct} ${mins}\""
+# v1.1.2: emitted once on significant downgrade (active zone → green/green-high),
+# replacing the periodic-pulse cleanup mechanism. Reactor checks for stale
+# flags and cleans them; if there are none, it's a silent no-op.
+emit_reset_detected() {
+    local pct="$1" zone="$2" mins="$3" prev_zone="$4"
+    echo "[session-guardian] RESET_DETECTED pct=${pct} zone=${zone} mins_left=${mins} from=${prev_zone}"
+    echo "ACTION: invoke /session-guardian:react with args \"${zone} ${pct} ${mins} reset\""
 }
 
 emit_weekly() {
@@ -136,12 +129,26 @@ reactor_consecutive_errors() {
     [[ "$v" =~ ^[0-9]+$ ]] && echo "$v" || echo 0
 }
 
+# Pick the next sleep duration based on current zone (adaptive cadence).
+poll_interval_for_zone() {
+    case "$1" in
+        green) echo "$POLL_GREEN" ;;
+        green-high) echo "$POLL_GREEN_HIGH" ;;
+        yellow) echo "$POLL_YELLOW" ;;
+        red) echo "$POLL_RED" ;;
+        critical) echo "$POLL_CRITICAL" ;;
+        *) echo "$POLL_GREEN" ;;
+    esac
+}
+
 # ── Main loop ────────────────────────────────────────────────────────────────
+
+CURRENT_ZONE="green"  # default until first read
 
 while true; do
     # Refuse symlinks (consistent with statusline writer)
     if [ -L "$RATE_STATE" ]; then
-        sleep "$POLL_INTERVAL"
+        sleep "$(poll_interval_for_zone "$CURRENT_ZONE")"
         continue
     fi
 
@@ -150,7 +157,7 @@ while true; do
     # respond. Detector keeps polling state silently for when reactor recovers.
     REACTOR_ERRORS=$(reactor_consecutive_errors)
     if [ "$REACTOR_ERRORS" -ge "$MAX_CONSECUTIVE_REACTOR_ERRORS" ]; then
-        sleep "$POLL_INTERVAL"
+        sleep "$(poll_interval_for_zone "$CURRENT_ZONE")"
         continue
     fi
 
@@ -179,15 +186,21 @@ while true; do
                 fi
                 printf '%s' "$CURRENT_ZONE" > "$LAST_ZONE_FILE"
             elif [ "$CUR_RANK" -lt "$LAST_RANK" ]; then
-                # Downgrade — suppress notification but keep state in sync.
-                # The health pulse will eventually trigger reactor's
-                # defensive cleanup if flags are stale.
+                # Downgrade — emit RESET_DETECTED only when going from an
+                # active zone (yellow/red/critical) to a quiet zone
+                # (green/green-high). This is the post-reset signal that
+                # tells the reactor to clean stale flags. In all other
+                # downgrade cases the reactor has nothing to do, so silent.
+                if [ "$LAST_RANK" -ge 2 ] && [ "$CUR_RANK" -le 1 ]; then
+                    emit_reset_detected "$PCT" "$CURRENT_ZONE" "$MINS" "$LAST_ZONE"
+                    EMITTED=1
+                fi
                 printf '%s' "$CURRENT_ZONE" > "$LAST_ZONE_FILE"
             fi
-            # else: same zone, no action
+            # else: same zone, no action — adaptive cadence keeps overhead low
         fi
 
-        # Weekly window monitoring (NEW v1.1.1) — independent from 5h zones
+        # Weekly window monitoring (independent from 5h zones)
         if [ -n "$PCT_7D" ] && [[ "$PCT_7D" =~ ^[0-9]+$ ]] && [ "$EMITTED" -eq 0 ]; then
             CURRENT_7D=$(zone_for_pct_7d "$PCT_7D")
             LAST_7D=$(cat "$LAST_7D_ZONE_FILE" 2>/dev/null || echo "weekly-ok")
@@ -208,17 +221,8 @@ while true; do
                 printf '%s' "$CURRENT_7D" > "$LAST_7D_ZONE_FILE"
             fi
         fi
-
-        # Health pulse (only if we didn't already emit this iteration)
-        if [ -n "${PCT:-}" ] && [ "$EMITTED" -eq 0 ]; then
-            NOW=$(date +%s)
-            LAST_HEALTH=$(cat "$LAST_HEALTH_FILE" 2>/dev/null || echo 0)
-            if [ $(( NOW - LAST_HEALTH )) -ge "$HEALTH_INTERVAL" ]; then
-                emit_health "$PCT" "$CURRENT_ZONE" "$MINS"
-                printf '%s' "$NOW" > "$LAST_HEALTH_FILE"
-            fi
-        fi
+        # No more periodic health pulses — see v1.1.2 design rationale at top.
     fi
 
-    sleep "$POLL_INTERVAL"
+    sleep "$(poll_interval_for_zone "$CURRENT_ZONE")"
 done
