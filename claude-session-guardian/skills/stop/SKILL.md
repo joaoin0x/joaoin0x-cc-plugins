@@ -90,12 +90,29 @@ Bash (single): touch "$SESSION_DIR/stop-requested.flag"
 
 A próxima iteração do `/loop` legacy (se ainda disparar via ScheduleWakeup) lê esta flag no PASSO 0A e termina sem reagendar. **Não afecta o background monitor v1.1.0+** — esse foi parado no PASSO 4 via TaskStop.
 
-### PASSO 6 — Limpar flags de warning
+### PASSO 6 — Limpar flags de warning + cancelar cron preventivo
 
 ```
 Bash (single): rm -f "$SESSION_DIR/soft-warn-sent.flag"
 Bash (single): rm -f "$SESSION_DIR/hard-warn-sent.flag"
 ```
+
+**Cancelar cron preventivo (NOVO v1.1.3)**
+
+O reactor (yellow/red) pode ter agendado um cron defensivo de retoma. Se o utilizador está a parar a monitorização explicitamente, esse cron deve ser cancelado também — caso contrário disparará após reset e abrirá uma sessão nova sem necessidade.
+
+```
+Read TOOL: $SESSION_DIR/resume-cron.json (se existir)
+  Se existe:
+    STORED_CRON_ID = .cron_id
+    CronDelete TOOL: task_id=STORED_CRON_ID  (best-effort, ignora erro)
+    Bash (single): rm -f "$SESSION_DIR/resume-cron.json"
+    PRE_EMPTIVE_CANCELLED=$STORED_CRON_ID
+  Senão:
+    PRE_EMPTIVE_CANCELLED=""
+```
+
+**NOTA**: este cancelamento é INDEPENDENTE do `SCHEDULE_RESUME` do PASSO 6.5. Se o utilizador escolheu "Parar e agendar retoma", o PASSO 6.5 cria um cron NOVO (diferente do preventivo). O preventivo é sempre cancelado aqui — substituí-lo por um agendado pelo utilizador é o comportamento correcto.
 
 ### PASSO 6.5 — Agendar retoma se SCHEDULE_RESUME=true (NOVO v1.0.8)
 
@@ -132,6 +149,8 @@ Emitir:
  Background monitor (v1.1.0+): {parado / não estava active}
  /loop legacy task(s) canceladas: {N}
  Flag de stop escrita: $SESSION_DIR/stop-requested.flag
+ {se PRE_EMPTIVE_CANCELLED não vazio:}
+   Cron preventivo cancelado: id=${PRE_EMPTIVE_CANCELLED}.
 
  {se SCHEDULE_RESUME=true:}
    Cron de retoma agendado: id=${cron_id}, dispara ${resume_at_local}.
@@ -140,8 +159,9 @@ Emitir:
    - Se em v1.1.0+ (background monitor): /reload-plugins ou abrir nova sessão
    - Se em /loop legacy: /session-guardian:start
 
-NOTA: Crons de RETOMA agendados por HARD STOP prévio NÃO são cancelados
-por este comando (CronList + CronDelete directamente se necessário)."
+NOTA: Crons de RETOMA agendados por HARD STOP prévio E que não estejam
+referenciados em $SESSION_DIR/resume-cron.json NÃO são cancelados por este
+comando (CronList + CronDelete directamente se necessário)."
 ```
 
 ## Notas
